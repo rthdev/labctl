@@ -1,0 +1,39 @@
+schema_version: 1
+id: AN001
+title: Ansible controller and web target
+goal: Use Ansible from a persistent controller to configure a freshly reset target web server.
+instructions: |
+  On controller, work in /home/student/ansible-lab and complete site.yml.
+  Target the web host; labctl supplies a fresh dynamic inventory during grading.
+  The playbook must install nginx, enable and start it, and deploy
+  /usr/share/nginx/html/index.html as root:root mode 0644 with the exact content
+  "Managed by Ansible". Run labctl grade AN001 when ready. Grading preserves the
+  controller and your site.yml, resets only target, then executes your playbook
+  from controller against that clean target.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [target]
+vms:
+  - name: target
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: target.an001.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an001.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-controller.sh
+    depends_on: [target]
+    ssh_user: student

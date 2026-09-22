@@ -1,0 +1,23 @@
+schema_version: 1
+id: LX102
+title: Persistent storage and mounts
+goal: Configure a durable XFS mount from deterministic loop-backed lab media.
+instructions: |
+  Use the prepared loop-backed lab medium; it represents the exercise disk.
+  Mount its XFS filesystem at /srv/archive and make the mount persistent in fstab.
+  Use loop,nofail options and ensure findmnt --verify reports no errors.
+  Create the required marker described in /home/student/LAB.md.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 14GiB
+    image: rocky:9
+    hostname: lx102.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

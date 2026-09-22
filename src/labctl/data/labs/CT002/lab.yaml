@@ -1,0 +1,51 @@
+schema_version: 1
+id: CT002
+title: Manage container lifecycle and state
+goal: Practice start, stop, logs, and exec operations on a retained rootless container.
+instructions: |
+  # CT002: Lifecycle, logs, and exec
+
+  Create `ct002-worker` from `docker.io/library/alpine:3.20`. Its initial command
+  must be `sh -c "echo 'CT002 worker ready'; exec sleep infinity"`. Stop, inspect,
+  and restart it. Leave it running. With `podman exec`, create `/lesson/status`
+  containing exactly `lifecycle inspected` followed by a newline.
+
+  ## Guided practice
+  ```sh
+  podman run --name ct002-worker --pull=never -d docker.io/library/alpine:3.20 sh -c "echo 'CT002 worker ready'; exec sleep infinity"
+  podman logs ct002-worker
+  podman stop ct002-worker
+  podman ps --all
+  podman start ct002-worker
+  podman exec ct002-worker sh -c 'mkdir -p /lesson; printf "lifecycle inspected\n" > /lesson/status'
+  podman exec ct002-worker cat /lesson/status
+  ```
+  `-d` runs in the background. Stop/start keeps the writable container layer;
+  removing and recreating it would lose that layer. Repeated starts append log lines.
+
+  Podman and the mutable-tag image are preloaded. There is no objective container.
+  Use rootless Podman as `student`; no sudo, privileged container, host substitute,
+  or registry access is allowed. Grading reads inspect JSON, logs, and the file from
+  that same named container without modifying it.
+  ## Common environment and boundaries
+  One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
+  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Use `--pull=never` for offline runs. Package/image acquisition during setup needs
+  Internet; the upstream image tag is mutable, not digest-pinned. No host container
+  engine is used. Keep SELinux confinement intact; never use privileged containers,
+  rootful Podman, disabled labels, host networking, or host-service substitutes.
+  No guest reboot is required for this lab. Leave all requested evidence in place.
+  From the labctl host, run `labctl lab grade CT002` to check your work.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: ct002.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

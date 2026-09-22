@@ -1,0 +1,45 @@
+schema_version: 1
+id: AN201
+title: Multi-tier Ansible deployment
+goal: Configure a separate application server and reverse proxy with Ansible.
+instructions: |
+  On controller, complete /home/student/ansible-lab/site.yml. Configure app to
+  serve the exact text "AN201 application" with nginx, then configure proxy as
+  an nginx reverse proxy to app. Both services must be enabled and active, and
+  requesting http://proxy/ must return the exact application text. The dynamic
+  grading inventory provides app, proxy, and the app_servers and proxies groups.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [app, proxy]
+vms:
+  - name: app
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: app.an201.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: proxy
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: proxy.an201.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-target.sh
+    depends_on: [app]
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an201.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-controller.sh
+    depends_on: [app, proxy]
+    ssh_user: student

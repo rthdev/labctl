@@ -1,0 +1,32 @@
+schema_version: 1
+id: CT201
+title: Build an image with a Containerfile
+goal: Build a labeled local application image reproducibly from a learner-authored Containerfile.
+instructions: |
+  # CT201: Containerfile build
+
+  Author `/home/student/ct201/Containerfile` using
+  `docker.io/library/alpine:3.20`. Set label
+  `org.opencontainers.image.title="CT201 app"`, add `/app/result.txt` containing
+  exactly `CT201 image build`, and choose a command that leaves the container up.
+  Build `localhost/ct201-app:1`, then leave rootless `ct201-app` running from it.
+
+  The directory is empty initially and only the mutable-tag base is preloaded. Do
+  not use sudo, privileged mode, a host substitute, or registry access in grading.
+  Use `podman build --pull=never -t localhost/ct201-app:1 /home/student/ct201`.
+  Bake the payload into the image; do not patch `/app` with exec or hide it under
+  any volume/bind mount. The image ID, runtime filesystem diff, and payload are checked.
+
+  ## Common environment and boundaries
+  One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
+  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Use `--pull=never` for offline runs. Package/image acquisition during setup needs
+  Internet; the upstream image tag is mutable, not digest-pinned. No host container
+  engine is used. Keep SELinux confinement intact; never use privileged containers,
+  rootful Podman, disabled labels, host networking, or host-service substitutes.
+  No guest reboot is required for this lab. Leave all requested evidence in place.
+  From the labctl host, run `labctl lab grade CT201` to check your work.
+provider: kvm
+grader: grade.py
+vms:
+  - {name: node, cpus: 1, ram: 1GiB, disk: 12GiB, image: 'rocky:9', hostname: ct201.lab, interfaces: [{type: isolated_nat}], setup: setup.sh, depends_on: [], ssh_user: student}

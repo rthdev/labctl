@@ -1,0 +1,23 @@
+schema_version: 1
+id: LX402
+title: Production incident diagnosis
+goal: Diagnose bounded disk and CPU symptoms and leave durable service recovery evidence.
+instructions: |
+  Investigate the staged API outage, isolated-filesystem pressure, and bounded CPU process.
+  Restore capacity without touching the root filesystem or labctl connectivity.
+  Disable the symptom unit and enable the recovered API for future boots.
+  Record root cause and recovery evidence exactly as described in /home/student/LAB.md.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 14GiB
+    image: rocky:9
+    hostname: lx402.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

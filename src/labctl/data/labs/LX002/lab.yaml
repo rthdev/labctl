@@ -1,0 +1,24 @@
+schema_version: 1
+id: LX002
+title: Files, links, and text processing
+goal: Organize files and prove link semantics while producing a deterministic text report.
+instructions: |
+  Work on node using the staged records in /srv/lx002/source.
+  Create /srv/lx002/archive/records.hard as a hard link to records.txt and
+  /home/student/current-records as a symbolic link to the source file.
+  Produce /srv/lx002/report.txt with sorted ERROR, INFO, and WARN counts,
+  owned by student:student with mode 0640. See /home/student/LAB.md.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: lx002.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

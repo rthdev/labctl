@@ -1,0 +1,43 @@
+schema_version: 1
+id: CT301
+title: Run a configured application pod
+goal: Run cooperating containers in one rootless pod with explicit read-only configuration.
+instructions: |
+  # CT301: Pod and configuration
+
+  Write `/home/student/ct301/app.conf` as exactly `mode=training` plus newline.
+  Create pod `ct301-stack` and running Alpine containers `ct301-web` and
+  `ct301-checker` in it. `ct301-web` needs `APP_MODE=training` and a read-only bind
+  of that file to `/etc/ct301/app.conf`; serve it as `/config` on pod-local 8080.
+  The checker must be able to request `http://127.0.0.1:8080/config`.
+
+  The directory starts empty. Do not publish ports, use sudo/privileged Podman,
+  copy config into the image, or contact a registry. The preloaded tag is mutable.
+  Use a shared pod network namespace (the normal Podman pod default). An optional
+  infra container is allowed. Keep SELinux enabled; use `:ro,Z` for this private
+  configuration bind. Alpine's BusyBox `httpd -f -p 8080 -h /srv` can serve a
+  `/srv/config` symlink pointing to `/etc/ct301/app.conf`.
+
+  Use the preloaded BusyBox `httpd` in `ct301-web`, not a checker-hosted server.
+  Its live document root must resolve `/config` to the mounted file itself, not
+  an independent copy or constant response. Keep the host backing path free of
+  symlinks and do not overlay the configuration bind or any of its parent paths.
+  For this read-only grading probe, run `httpd` (or `busybox httpd`) with only
+  separate `-f`, `-v`, `-vv`, `-p PORT`, and/or `-h DIRECTORY` arguments; the document
+  root may vary. Do not add `httpd.conf`, redirects, CGI, or custom server options.
+  The grader correlates the web process's listening socket and live document root
+  with the original file's identity and exact bytes; it never edits configuration.
+
+  ## Common environment and boundaries
+  One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
+  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Use `--pull=never` for offline runs. Package/image acquisition during setup needs
+  Internet; the upstream image tag is mutable, not digest-pinned. No host container
+  engine is used. Keep SELinux confinement intact; never use privileged containers,
+  rootful Podman, disabled labels, host networking, or host-service substitutes.
+  No guest reboot is required for this lab. Leave all requested evidence in place.
+  From the labctl host, run `labctl lab grade CT301` to check your work.
+provider: kvm
+grader: grade.py
+vms:
+  - {name: node, cpus: 2, ram: 2GiB, disk: 12GiB, image: 'rocky:9', hostname: ct301.lab, interfaces: [{type: isolated_nat}], setup: setup.sh, depends_on: [], ssh_user: student}

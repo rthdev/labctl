@@ -1,0 +1,57 @@
+schema_version: 1
+id: CT001
+title: Run your first rootless container
+goal: Run and retain a successful one-shot container as your first rootless Podman workload.
+instructions: |
+  # CT001: Run your first rootless container
+
+  ## Objective
+  As `student`, create `ct001-hello` from `docker.io/library/alpine:3.20` with the
+  exact command `printf 'CT001 container complete\n'`. Let it exit successfully and
+  retain it so `podman inspect` and `podman logs` still work.
+
+  ## Guided first steps
+  Run these commands after `labctl lab ssh CT001 node`:
+  ```sh
+  podman run --name ct001-hello --pull=never docker.io/library/alpine:3.20 printf 'CT001 container complete\n'
+  podman ps --all
+  podman logs ct001-hello
+  podman inspect ct001-hello
+  ```
+  `--name` keeps an easy-to-find name; `--pull=never` uses the supplied image.
+  An exited container is normal: its one task finished. Do not use `--rm`, which
+  would delete the evidence. You can grade from the host with `labctl lab grade CT001`.
+
+  ## Starting state
+  Podman and the image are installed, but no objective container is created.
+
+  ## Rules
+  - Run Podman as `student`, never through `sudo` and never with `--privileged`.
+  - Do not replace Podman evidence with host files or processes.
+  - Do not remove `ct001-hello` after it exits.
+
+  The image tag is mutable upstream. Setup downloads it during provisioning; grading
+  uses only the local student image store and does not contact a registry.
+  ## Common environment and boundaries
+  One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
+  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Use `--pull=never` for offline runs. Package/image acquisition during setup needs
+  Internet; the upstream image tag is mutable, not digest-pinned. No host container
+  engine is used. Keep SELinux confinement intact; never use privileged containers,
+  rootful Podman, disabled labels, host networking, or host-service substitutes.
+  No guest reboot is required for this lab. Leave all requested evidence in place.
+  From the labctl host, run `labctl lab grade CT001` to check your work.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: ct001.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

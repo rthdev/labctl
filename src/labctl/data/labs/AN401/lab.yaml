@@ -1,0 +1,38 @@
+schema_version: 1
+id: AN401
+title: Repair fragile Ansible application automation
+goal: Repair a fragile Ansible project so it configures a secure, idempotent web application target.
+instructions: |
+  On controller, repair the supplied project in /home/student/ansible-lab. Do not
+  replace the exercise with manual target changes: grading resets target, refreshes
+  inventory, and runs site.yml twice. The target must serve the AN401 application,
+  keep its application configuration at root:apache mode 0640, and leave the second
+  playbook run with changed=0 and failures=0. Any Ansible structure or modules that
+  produce those outcomes are accepted.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [target]
+vms:
+  - name: target
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: target.an401.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an401.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-controller.sh
+    depends_on: [target]
+    ssh_user: student

@@ -1,0 +1,25 @@
+schema_version: 1
+id: LX401
+title: Boot failure and root-password recovery
+goal: Recover an unbootable host, reset root safely, and preserve SELinux enforcement.
+instructions: |
+  REBOOT THE VM FROM THE CONSOLE TO BEGIN; the staged faults appear on reboot.
+  Use GRUB recovery to unlock and change root. Replace staged `audit=O` (letter O)
+  with required `audit=0` (digit zero) persistently and in the running kernel.
+  Repair fstab and mount the documented loop-backed lab medium at /srv/recovery.
+  Preserve SELinux enforcing mode and let the staged full-relabel marker complete
+  during the repaired boot, then reach normal multi-user mode with shadow relabeled.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 14GiB
+    image: rocky:9
+    hostname: lx401.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

@@ -1,0 +1,40 @@
+schema_version: 1
+id: AN102
+title: Build an idempotent reusable web role
+goal: Build reusable Ansible automation that converges a web server without changes on a second run.
+instructions: |
+  On controller, work in /home/student/ansible-lab. Implement the web automation,
+  preferably as the provided reusable role, and apply it from site.yml to the web
+  host group supplied during grading. Install nginx, enable and start it, and
+  deploy /usr/share/nginx/html/index.html as root:root mode 0644 with the exact
+  content "Reusable Ansible role" followed by one newline. The complete playbook
+  must report changed=0 on a second run. Grading accepts any playbook structure:
+  it checks only the web outcomes and the second ansible-playbook recap after
+  resetting target and running from the persistent controller.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [target]
+vms:
+  - name: target
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: target.an102.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an102.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-controller.sh
+    depends_on: [target]
+    ssh_user: student

@@ -1,0 +1,39 @@
+schema_version: 1
+id: AN002
+title: Manage users and shared access with Ansible
+goal: Use Ansible to create team accounts, a setgid shared directory, and SSH access.
+instructions: |
+  On controller, work in /home/student/ansible-lab and complete site.yml.
+  Target the managed host group from the inventory supplied during grading. Create
+  the automation group and the deploy and auditor users, with both users in that
+  group. Create /srv/automation as root:automation mode 2770. Install the public
+  key from /home/student/ansible-lab/deploy_access_key.pub for deploy in an
+  authorized_keys file as its sole key, owned by deploy:deploy with mode 0600. Grading resets only
+  target, runs your playbook from the persistent controller, and checks outcomes.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [target]
+vms:
+  - name: target
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: target.an002.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an002.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-controller.sh
+    depends_on: [target]
+    ssh_user: student

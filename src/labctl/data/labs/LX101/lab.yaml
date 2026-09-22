@@ -1,0 +1,23 @@
+schema_version: 1
+id: LX101
+title: Packages, services, and logs
+goal: Install and operate a managed web service with persistent system logs.
+instructions: |
+  Work on node and use the package and service management tools.
+  Install httpd, publish `LX101 healthy` at `/health`, and enable and start it.
+  Configure journald persistent storage in `/etc/systemd/journald.conf.d/lx101.conf`.
+  Confirm the httpd unit has journal records; details are in /home/student/LAB.md.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: lx101.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

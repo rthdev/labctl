@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://labctl.invalid/schemas/grading-context-v1.schema.json",
+  "title": "labctl grading context schema v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "lab_id", "title", "goal", "provider", "provider_uri", "hosts"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "lab_id": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "goal": {"type": "string", "minLength": 1},
+    "provider": {"type": "string", "minLength": 1},
+    "provider_uri": {"type": "string", "minLength": 1},
+    "hosts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "hostname", "address", "ssh_user", "private_key_path", "known_hosts_path", "provider", "provider_uri", "lifecycle_state"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "hostname": {"type": "string", "minLength": 1},
+          "address": {"type": "string", "minLength": 1},
+          "ssh_user": {"type": "string", "minLength": 1},
+          "private_key_path": {"type": "string", "minLength": 1},
+          "known_hosts_path": {"type": "string", "minLength": 1},
+          "provider": {"type": "string", "minLength": 1},
+          "provider_uri": {"type": "string", "minLength": 1},
+          "lifecycle_state": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

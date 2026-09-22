@@ -1,0 +1,55 @@
+schema_version: 1
+id: AN301
+title: Rolling Ansible web deployment
+goal: Deliver an idempotent rolling release across three web servers.
+instructions: |
+  Complete /home/student/ansible-lab/site.yml on controller. Deploy nginx to all
+  hosts in the web_fleet group as a rolling update (use serial: 1). Each enabled,
+  active service must return the exact text "AN301 version 3.1.0". Make the
+  playbook fully idempotent: grading runs it twice and the second run must report
+  changed=0 for every host. Outcome grading does not claim to prove sequencing.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [web1, web2, web3]
+vms:
+  - name: web1
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: web1.an301.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: web2
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: web2.an301.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: web3
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: web3.an301.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an301.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-controller.sh
+    depends_on: [web1, web2, web3]
+    ssh_user: student

@@ -1,0 +1,24 @@
+schema_version: 1
+id: LX001
+title: Users and permissions
+goal: Configure a shared operations directory using Linux users, groups, and mode bits.
+instructions: |
+  On node, create the labops group and the opsadmin user. Make opsadmin a member
+  of labops. Create /srv/labshare owned by opsadmin:labops with mode 2770, then
+  create /srv/labshare/operations.txt owned by opsadmin:labops with mode 0660.
+  Preserve the setgid bit so new files inherit the shared group. Run labctl grade
+  LX001 when all four requirements are satisfied.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: lx001.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

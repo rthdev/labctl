@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://labctl.invalid/schemas/json-output-v1.schema.json",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "ok", "kind", "data"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "ok": {"const": true},
+        "kind": {"enum": ["help", "version", "completion", "labs", "lab", "vms", "vm", "images", "image", "providers", "provider", "doctor", "reconciliation", "grade", "child"]},
+        "data": {}
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "ok", "error"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "ok": {"const": false},
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": {"enum": ["usage", "not_found", "conflict", "prerequisite", "operation", "grading"]},
+            "message": {"type": "string", "minLength": 1},
+            "details": {}
+          }
+        }
+      }
+    }
+  ]
+}

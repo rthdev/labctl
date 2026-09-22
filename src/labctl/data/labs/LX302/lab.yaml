@@ -1,0 +1,24 @@
+schema_version: 1
+id: LX302
+title: LVM expansion and recovery
+goal: Recover and expand an XFS logical volume using deterministic loop-backed media.
+instructions: |
+  Treat the two loop-backed image files as the lab storage devices.
+  Add the spare medium to vgdata and grow lvdata plus its XFS filesystem.
+  Reach at least 700 MiB while preserving the mounted filesystem and its data.
+  Order loop-PV attachment before local filesystems and LVM activation as described
+  in /home/student/LAB.md. Reboot and prove the exact LV mounts from fstab afterward.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 2GiB
+    disk: 14GiB
+    image: rocky:9
+    hostname: lx302.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

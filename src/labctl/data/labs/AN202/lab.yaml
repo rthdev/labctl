@@ -1,0 +1,37 @@
+schema_version: 1
+id: AN202
+title: Ansible storage, web, firewall, and SELinux
+goal: Build durable loop-backed web storage while preserving host security controls.
+instructions: |
+  Complete /home/student/ansible-lab/site.yml on controller. On target, create a
+  1 GiB sparse /var/lib/an202/storage.img ext4 filesystem, persistently mount it
+  at /srv/an202 using the loop option. Configure enabled, active httpd to serve
+  /srv/an202/www as its live web root, with /srv/an202/www/index.html containing
+  the exact text "AN202 durable web"; do not copy it to an independent default
+  document root. Permanently allow HTTP through firewalld. Keep SELinux enforcing
+  and assign correct persistent httpd content contexts; do not disable SELinux.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [target]
+vms:
+  - name: target
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: target.an202.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an202.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-controller.sh
+    depends_on: [target]
+    ssh_user: student

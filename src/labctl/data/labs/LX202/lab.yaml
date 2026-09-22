@@ -1,0 +1,23 @@
+schema_version: 1
+id: LX202
+title: Scheduled jobs and system maintenance
+goal: Implement durable, observable maintenance using a persistent systemd timer.
+instructions: |
+  Replace an unreliable manual task with a systemd service and timer.
+  Schedule maintenance every day at 02:15 and recover missed runs persistently.
+  Remove the staged stale cache file and record successful completion.
+  Use /home/student/LAB.md for the required paths and evidence.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: lx202.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

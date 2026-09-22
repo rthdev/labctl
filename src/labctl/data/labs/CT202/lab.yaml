@@ -1,0 +1,28 @@
+schema_version: 1
+id: CT202
+title: Connect services on a private network
+goal: Connect an API and client through DNS on an internal rootless Podman network.
+instructions: |
+  # CT202: Private container networking
+
+  Create internal network `ct202-private`. Run `ct202-api` and `ct202-client` from
+  the preloaded `docker.io/library/alpine:3.20`, both attached only to that network.
+  Give the API alias `api`; serve exact body `CT202 private API` at `/health` on
+  port 8080. Leave both running and prove the client can request `http://api:8080/health`.
+
+  Nothing objective-related exists initially. Do not publish a host port, use host
+  networking, edit `/etc/hosts`, use sudo/privileged Podman, or contact a registry.
+  The upstream image tag is mutable; setup acquisition requires Internet.
+  ## Common environment and boundaries
+  One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
+  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Use `--pull=never` for offline runs. Package/image acquisition during setup needs
+  Internet; the upstream image tag is mutable, not digest-pinned. No host container
+  engine is used. Keep SELinux confinement intact; never use privileged containers,
+  rootful Podman, disabled labels, host networking, or host-service substitutes.
+  No guest reboot is required for this lab. Leave all requested evidence in place.
+  From the labctl host, run `labctl lab grade CT202` to check your work.
+provider: kvm
+grader: grade.py
+vms:
+  - {name: node, cpus: 1, ram: 1GiB, disk: 12GiB, image: 'rocky:9', hostname: ct202.lab, interfaces: [{type: isolated_nat}], setup: setup.sh, depends_on: [], ssh_user: student}

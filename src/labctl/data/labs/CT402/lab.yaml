@@ -1,0 +1,48 @@
+schema_version: 1
+id: CT402
+title: Recover a rootless container incident
+goal: Diagnose and repair a staged rootless API port mismatch while preserving named-volume data and evidence.
+instructions: |
+  # CT402: Incident recovery capstone
+
+  `ct402-api` publishes host `127.0.0.1:8080` to container port 8080, but its API
+  is configured for another port. Use inspect and logs to identify the mismatch.
+  Preserve named volume `ct402-data`; recreate the same named rootless Alpine
+  container with `API_PORT=8080`, the same volume at `/srv`, and the exact loopback
+  mapping. Leave it running. `/health` must return `CT402 recovered API`.
+
+  Create `/home/student/ct402-incident-report` with exactly:
+  `root cause: API_PORT was 9090 while published target was 8080`
+  `recovery: recreated ct402-api on 8080 with ct402-data preserved`
+
+  Do not erase the volume, edit the baseline, run a host server, use sudo or
+  privileged Podman, disable SELinux, or contact a registry. Setup stages the fault
+  only once, so reruns preserve recovery. The preloaded upstream tag is mutable.
+  Preserve the original volume object as well as its data: its creation timestamp
+  is recorded by setup. Recovery is not complete if the volume was deleted and
+  replaced, even with matching text. Confirm the guest's loopback endpoint with
+  `curl --noproxy '*' http://127.0.0.1:8080/health` as well as a container-local probe.
+
+  Serve the original `/srv/health` file (exactly `CT402 recovered API` plus newline)
+  with the preloaded BusyBox `httpd` in `ct402-api`. Do not replace that backing file
+  with a symlink, overlay `/srv` or its contents, or serve an independent copy.
+  For this read-only grading probe, run `httpd` (or `busybox httpd`) with only
+  separate `-f`, `-v`, `-vv`, `-p PORT`, and/or `-h DIRECTORY` arguments; the document
+  root may vary if `/health` still resolves to the original volume file. Do not add
+  `httpd.conf`, redirects, CGI, or custom server options. The grader independently
+  reads the volume's data and correlates its identity with the effective mount,
+  server's live document root and listening socket; it never edits the volume.
+
+  ## Common environment and boundaries
+  One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
+  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Use `--pull=never` for offline runs. Package/image acquisition during setup needs
+  Internet; the upstream image tag is mutable, not digest-pinned. No host container
+  engine is used. Keep SELinux confinement intact; never use privileged containers,
+  rootful Podman, disabled labels, host networking, or host-service substitutes.
+  No guest reboot is required for this lab. Leave all requested evidence in place.
+  From the labctl host, run `labctl lab grade CT402` to check your work.
+provider: kvm
+grader: grade.py
+vms:
+  - {name: node, cpus: 2, ram: 2GiB, disk: 12GiB, image: 'rocky:9', hostname: ct402.lab, interfaces: [{type: isolated_nat}], setup: setup.sh, depends_on: [], ssh_user: student}

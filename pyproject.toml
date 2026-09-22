@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "labctl"
+version = "0.1.0"
+description = "Manage reproducible Linux learning labs on local KVM/libvirt"
+readme = "README.md"
+license = "BSD-2-Clause"
+requires-python = ">=3.12"
+dependencies = [
+  "defusedxml>=0.7.1,<1",
+  "PyYAML>=6.0.2,<7",
+  "jsonschema>=4.23,<5",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2",
+  "hatchling>=1.27,<2",
+  "mypy>=1.14,<3",
+  "pytest>=8.3,<10",
+  "ruff>=0.9,<1",
+  "types-defusedxml>=0.7.0.20240218",
+  "types-PyYAML>=6.0.12",
+]
+
+[project.scripts]
+labctl = "labctl.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/labctl"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src",
+  "tests",
+  "docs",
+  "scripts",
+  "README.md",
+  "MAINTAINING.md",
+  "LICENSE",
+  "pyproject.toml",
+]
+
+[tool.hatch.build]
+artifacts = ["src/labctl/data/**"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = ["libvirt: optional tests requiring a usable real libvirt host"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S603"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["labctl"]
+mypy_path = "src"

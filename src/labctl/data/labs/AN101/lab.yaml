@@ -1,0 +1,46 @@
+schema_version: 1
+id: AN101
+title: Render service configuration with a handler
+goal: Use variables and a template to configure chronyd, notifying a restart only when needed.
+instructions: |
+  On controller, work in /home/student/ansible-lab and complete site.yml. Target
+  the managed host group from the grading inventory. Render /etc/chrony.conf with
+  exactly these lines (and a final newline):
+
+    pool 2.pool.ntp.org iburst
+    driftfile /var/lib/chrony/drift
+    makestep 1.0 3
+    rtcsync
+
+  Keep it root:root mode 0644, ensure chrony is installed, and ensure chronyd is
+  enabled and active. Use
+  variables, a template, and a notified handler so an unchanged second run does
+  not restart chronyd. Grading resets only target, then runs the playbook twice
+  from the persistent controller and checks the resulting service state and PID.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [target]
+vms:
+  - name: target
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: target.an101.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an101.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-controller.sh
+    depends_on: [target]
+    ssh_user: student

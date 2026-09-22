@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+python=${PYTHON:-python3}
+"$python" -c 'import sys; assert sys.version_info >= (3, 12), "labctl requires Python 3.12+"'
+
+"$python" -m ruff format --check .
+"$python" -m ruff check .
+"$python" -m mypy src/labctl
+"$python" -m pytest -q
+
+artifact_dir=$(mktemp -d "${TMPDIR:-/tmp}/labctl-dist.XXXXXXXX")
+trap 'rm -rf -- "$artifact_dir"' EXIT
+"$python" -m build --sdist --wheel --outdir "$artifact_dir"

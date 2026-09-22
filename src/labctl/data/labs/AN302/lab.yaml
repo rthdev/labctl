@@ -1,0 +1,37 @@
+schema_version: 1
+id: AN302
+title: Ansible accounts, secrets, and narrow privilege
+goal: Enforce account, secret, and least-privilege boundaries with Ansible.
+instructions: |
+  Complete /home/student/ansible-lab/site.yml on controller. Create dedicated
+  deployer and auditor accounts with private primary groups and no cross-membership.
+  Create /etc/an302/secret containing exactly "AN302-rotation-key" (no newline),
+  owned root:auditor mode 0640. Create /etc/sudoers.d/an302-deployer owned root:root
+  mode 0440 with exactly this single line:
+  deployer ALL=(root) /usr/bin/systemctl restart an302-agent
+  The deployer account must not be able to read the secret.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [target]
+vms:
+  - name: target
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: target.an302.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an302.lab
+    interfaces: [{type: isolated_nat}]
+    setup: setup-controller.sh
+    depends_on: [target]
+    ssh_user: student

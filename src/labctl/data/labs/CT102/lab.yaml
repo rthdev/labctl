@@ -1,0 +1,28 @@
+schema_version: 1
+id: CT102
+title: Persist data in a named volume
+goal: Preserve application data in a rootless named volume attached to a replacement-safe container.
+instructions: |
+  # CT102: Named-volume persistence
+
+  Create named volume `ct102-data`. Create running `ct102-writer` from
+  `docker.io/library/alpine:3.20`, mounting the volume at `/data`, and write exactly
+  `CT102 durable data` plus a newline to `/data/message.txt`. You may remove and
+  replace the container while proving the data survives, but leave the final one running.
+
+  No volume or objective container exists initially. Use rootless Podman as student.
+  No sudo, privileged mode, bind mount, host file substitute, or registry access.
+  The upstream tag is mutable; setup preloads it and grading is read-only/offline.
+  ## Common environment and boundaries
+  One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
+  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Use `--pull=never` for offline runs. Package/image acquisition during setup needs
+  Internet; the upstream image tag is mutable, not digest-pinned. No host container
+  engine is used. Keep SELinux confinement intact; never use privileged containers,
+  rootful Podman, disabled labels, host networking, or host-service substitutes.
+  No guest reboot is required for this lab. Leave all requested evidence in place.
+  From the labctl host, run `labctl lab grade CT102` to check your work.
+provider: kvm
+grader: grade.py
+vms:
+  - {name: node, cpus: 1, ram: 1GiB, disk: 12GiB, image: 'rocky:9', hostname: ct102.lab, interfaces: [{type: isolated_nat}], setup: setup.sh, depends_on: [], ssh_user: student}

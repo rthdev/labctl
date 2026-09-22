@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "images": [
+    {
+      "id": "rocky:9",
+      "format": "qcow2",
+      "url": "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base-9.8-20260525.0.x86_64.qcow2",
+      "sha256": "92c206cc6f790c61583247eefe87890f8828420662c17cacf247cec78ab4eec8",
+      "build_identity": "Rocky-9-GenericCloud-Base-9.8-20260525.0.x86_64",
+      "architecture": "x86_64",
+      "checksum_algorithm": "sha256",
+      "checksum_source_url": "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base-9.8-20260525.0.x86_64.qcow2.CHECKSUM",
+      "default_ssh_user": "rocky"
+    },
+    {
+      "id": "rocky:10",
+      "format": "qcow2",
+      "url": "https://dl.rockylinux.org/pub/rocky/10/images/x86_64/Rocky-10-GenericCloud-Base-10.2-20260525.0.x86_64.qcow2",
+      "sha256": "9fc9e9ff16888bb68ac39b0392e25c9c92684d50c85f1cce6ab549363bbc4b48",
+      "build_identity": "Rocky-10-GenericCloud-Base-10.2-20260525.0.x86_64",
+      "architecture": "x86_64",
+      "checksum_algorithm": "sha256",
+      "checksum_source_url": "https://dl.rockylinux.org/pub/rocky/10/images/x86_64/Rocky-10-GenericCloud-Base-10.2-20260525.0.x86_64.qcow2.CHECKSUM",
+      "default_ssh_user": "rocky"
+    },
+    {
+      "id": "fedora:44",
+      "format": "qcow2",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Server/x86_64/images/Fedora-Server-Guest-Generic-44-1.7.x86_64.qcow2",
+      "sha256": "446c01f71e3c6cd3889af66fec927b8d1160b8e0744243d7861c2b8b2ddd3f0e",
+      "build_identity": "Fedora-Server-Guest-Generic-44-1.7.x86_64",
+      "architecture": "x86_64",
+      "checksum_algorithm": "sha256",
+      "checksum_source_url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Server/x86_64/images/Fedora-Server-44-1.7-x86_64-CHECKSUM",
+      "default_ssh_user": "fedora"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+schema_version: 1
+id: LX201
+title: Network and firewall operations
+goal: Repair a host firewall policy without interrupting managed networking or HTTP.
+instructions: |
+  Work on node without changing its labctl-managed address or interface profile.
+  Enable firewalld and make the public-zone policy allow HTTP but not cockpit.
+  Reload the permanent policy and preserve NetworkManager plus the health endpoint.
+  Read /home/student/LAB.md before applying the repair.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:9
+    hostname: lx201.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

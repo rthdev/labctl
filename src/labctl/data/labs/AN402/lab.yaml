@@ -1,0 +1,62 @@
+schema_version: 1
+id: AN402
+title: Recover a multi-node service platform with Ansible
+goal: Recover a three-node web platform while preserving healthy nodes and reporting the result.
+instructions: |
+  On controller, repair the supplied project in /home/student/ansible-lab. Grading
+  resets all managed nodes to deterministic starting faults, refreshes inventory,
+  and runs site.yml twice. Recover web service, application configuration, firewall,
+  enforcing SELinux policy, and backend health on every node. Preserve already
+  healthy state through idempotent automation. Generate
+  /home/student/ansible-lab/recovery-summary.json on controller with lab, status,
+  and one healthy entry for each managed host. Outcomes are graded; playbook and
+  role structure are not.
+provider: kvm
+grader: grade.py
+grading:
+  reset_vms: [web1, web2, web3]
+vms:
+  - name: web1
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: web1.an402.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: web2
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: web2.an402.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: web3
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: web3.an402.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-target.sh
+    depends_on: []
+    ssh_user: student
+  - name: controller
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:9
+    hostname: controller.an402.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup-controller.sh
+    depends_on: [web1, web2, web3]
+    ssh_user: student

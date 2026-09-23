@@ -24,7 +24,9 @@ def test_public_documentation_uses_portable_operator_home_paths() -> None:
 
 
 def test_version_and_console_entry_point() -> None:
-    assert labctl.__version__ == "0.1.0"
+    assert labctl.__version__ == "0.2.0"
+    project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert project["version"] == labctl.__version__
     scripts = {ep.name: ep.value for ep in entry_points(group="console_scripts")}
     assert scripts["labctl"] == "labctl.cli:main"
 

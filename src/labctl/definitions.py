@@ -50,6 +50,12 @@ class GradingDefinition:
 
 
 @dataclass(frozen=True, slots=True)
+class ControllerAccessDefinition:
+    controller: str
+    targets: tuple[tuple[str, tuple[str, ...]], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class LabDefinition:
     schema_version: int
     id: str
@@ -62,6 +68,7 @@ class LabDefinition:
     source: Path
     grading: GradingDefinition = GradingDefinition()
     external: bool = False
+    controller_access: ControllerAccessDefinition | None = None
 
     def dependency_order(self) -> tuple[VMDefinition, ...]:
         ordered: list[VMDefinition] = []
@@ -135,9 +142,10 @@ def load_definition(source: Path, *, external: bool = False) -> LabDefinition:
         "provider",
         "grader",
         "grading",
+        "controller_access",
         "vms",
     }
-    data = _mapping(raw, "", root_fields, root_fields - {"grading"})
+    data = _mapping(raw, "", root_fields, root_fields - {"grading", "controller_access"})
     if data["schema_version"] != 1:
         raise DefinitionError(f"{source}: schema_version must be 1")
     if not isinstance(data["id"], str) or not LAB_ID.fullmatch(data["id"]):
@@ -225,6 +233,42 @@ def load_definition(source: Path, *, external: bool = False) -> LabDefinition:
         if unknown is not None:
             raise DefinitionError(f"grading.reset_vms: unknown VM {unknown}")
         reset_vms = tuple(selected)
+    access = None
+    if "controller_access" in data:
+        fields = {"controller", "targets"}
+        raw_access = _mapping(data["controller_access"], "controller_access", fields, fields)
+        controller = raw_access["controller"]
+        targets = raw_access["targets"]
+        if (
+            not data["id"].startswith("AN")
+            or data["provider"] != "kvm"
+            or not isinstance(controller, str)
+            or controller not in names
+            or not isinstance(targets, dict)
+            or not targets
+        ):
+            raise DefinitionError("controller_access: requires an AN KVM controller and targets")
+        for name, groups in targets.items():
+            if name not in names or name == controller:
+                raise DefinitionError("controller_access.targets: invalid target VM")
+            if (
+                not isinstance(groups, list)
+                or not groups
+                or any(
+                    not isinstance(group, str)
+                    or not re.fullmatch(r"[a-z][a-z0-9_]*", group)
+                    or group in {"all", "ungrouped"}
+                    for group in groups
+                )
+                or len(groups) != len(set(groups))
+            ):
+                raise DefinitionError("controller_access.targets: invalid groups")
+        participants = {controller, *targets}
+        if any(vm.ssh_user != "student" for vm in vms if vm.name in participants):
+            raise DefinitionError("controller_access: participating VMs must use student")
+        access = ControllerAccessDefinition(
+            controller, tuple((name, tuple(groups)) for name, groups in targets.items())
+        )
     definition = LabDefinition(
         schema_version=1,
         id=data["id"],
@@ -237,6 +281,7 @@ def load_definition(source: Path, *, external: bool = False) -> LabDefinition:
         source=source,
         grading=GradingDefinition(reset_vms),
         external=external,
+        controller_access=access,
     )
     definition.dependency_order()
     return definition

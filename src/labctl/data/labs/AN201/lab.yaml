@@ -12,6 +12,11 @@ provider: kvm
 grader: grade.py
 grading:
   reset_vms: [app, proxy]
+controller_access:
+  controller: controller
+  targets:
+    app: [app_servers]
+    proxy: [proxies]
 vms:
   - name: app
     cpus: 1

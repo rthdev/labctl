@@ -21,6 +21,10 @@ provider: kvm
 grader: grade.py
 grading:
   reset_vms: [target]
+controller_access:
+  controller: controller
+  targets:
+    target: [managed]
 vms:
   - name: target
     cpus: 2

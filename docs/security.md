@@ -61,6 +61,21 @@ Provision QEMU DAC access and SELinux labels only on the dedicated storage root.
 Do not use `chmod 777`, disable SELinux, configure QEMU to run as the desktop
 user, or expose XDG private keys and cloud-init source to solve storage access.
 
+## Controller practice credentials
+
+An explicit `controller_access` definition creates a separate Ed25519 key inside
+the controller guest. Only its public key is read back to the host and authorised
+on the declared targets. The host-management private key is never copied into a
+guest. Practice SSH aliases and inventory pin the provisioned target host keys;
+neither password prompts nor trust-on-first-use are needed.
+
+Guest configuration runs as `student`, not root, and rejects unsafe ownership,
+permissions, symlinks, and hard-linked managed files. It preserves unrelated
+SSH configuration and authorised keys outside marked labctl blocks. Managed
+practice inventory and connection files are regenerated during refresh. As with
+all lab files, a root-capable learner can deliberately change these settings;
+they are not an anti-cheat boundary.
+
 ## Proxy credentials
 
 Guest inheritance is an explicit ten-name proxy allowlist, never a copy of the

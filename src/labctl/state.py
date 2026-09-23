@@ -33,6 +33,7 @@ def _validate(data: Any) -> dict[str, Any]:
         "vm_order",
         "image_digests",
         "definition_digest",
+        "controller_access_status",
         "identity_file",
         "vms",
         "cleanup",
@@ -41,6 +42,11 @@ def _validate(data: Any) -> dict[str, Any]:
     unknown = data.keys() - allowed
     if unknown:
         raise StateError(f"unknown state field: {sorted(unknown)[0]}")
+    if "controller_access_status" in data and data["controller_access_status"] not in (
+        "pending",
+        "ready",
+    ):
+        raise StateError("invalid controller_access_status")
     storage_path = data.get("storage_path")
     if storage_path is not None and (
         not isinstance(storage_path, str) or not Path(storage_path).is_absolute()

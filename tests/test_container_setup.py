@@ -21,7 +21,13 @@ args = sys.argv[1:]
 root = Path(os.environ['CT_SANDBOX'])
 with (root / 'calls').open('a') as out:
     out.write(json.dumps([name, *args]) + '\\n')
-if name in ('dnf', 'loginctl', 'systemctl', 'chown'):
+if name == 'dnf':
+    # Model the managed guest image with full curl already installed.
+    if 'curl-minimal' in args:
+        print('curl-minimal conflicts with installed curl', file=sys.stderr)
+        raise SystemExit(1)
+    raise SystemExit(0)
+if name in ('loginctl', 'systemctl', 'chown'):
     raise SystemExit(0)
 if name == 'id':
     print('1000')
@@ -119,6 +125,9 @@ def test_setup_twice_preserves_work_and_preloads_once(tmp_path: Path, lab_id: st
         else:
             assert guide.read_text() == "learner notes retained\n"
     calls = [json.loads(line) for line in (tmp_path / "calls").read_text().splitlines()]
+    installs = [call for call in calls if call[:3] == ["dnf", "-y", "install"]]
+    assert len(installs) == 2
+    assert all("curl" in call and "curl-minimal" not in call for call in installs)
     assert sum(call[:2] == ["podman", "pull"] for call in calls) == 1
     assert sum(call[0] == "usermod" for call in calls) == 2
     runs = [call for call in calls if call[:2] == ["podman", "run"]]

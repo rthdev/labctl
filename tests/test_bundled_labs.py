@@ -46,6 +46,13 @@ def test_bundled_definition_loads_with_exact_schema(lab_id: str, title: str) -> 
     assert all(os.access(vm.setup, os.X_OK) for vm in definition.vms)
 
 
+@pytest.mark.parametrize(
+    "script", sorted(LABS.rglob("*.sh")), ids=lambda path: str(path.relative_to(LABS))
+)
+def test_bundled_scripts_do_not_request_conflicting_curl_minimal(script: Path) -> None:
+    assert "curl-minimal" not in script.read_text(encoding="utf-8")
+
+
 def _fake_ssh(tmp_path: Path) -> tuple[Path, Path]:
     log = tmp_path / "ssh-argv.jsonl"
     executable = tmp_path / "ssh-fake"

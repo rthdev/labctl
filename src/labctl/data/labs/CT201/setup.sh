@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-dnf -y install podman shadow-utils python3 slirp4netns fuse-overlayfs curl-minimal
+dnf -y install podman shadow-utils python3 slirp4netns fuse-overlayfs curl
 # Never overlap another account's subordinate IDs or replace an existing mapping.
 python3 - <<'CT_SUBIDS'
 from pathlib import Path

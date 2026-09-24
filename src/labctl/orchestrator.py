@@ -359,12 +359,36 @@ class KVMOrchestrator:
             raise OrchestrationError(f"transaction journal is invalid: {path}")
         return document
 
-    def _require_no_pending_transaction(self, lab_id: str, operation: str) -> None:
-        if self._load_journal(lab_id) is not None:
-            raise OrchestrationError(
-                f"pending transaction for {lab_id} requires recovery with lab reset "
-                f"before {operation}"
+    def _pending_transaction_error(
+        self, lab_id: str, journal: dict[str, Any], operation: str
+    ) -> OrchestrationError:
+        pending = journal.get("operation")
+        if pending == "create":
+            recovery = (
+                f"labctl lab rm {lab_id} (discard incomplete creation) or "
+                f"labctl lab create {lab_id} (retry creation)"
             )
+        elif pending == "reset":
+            recovery = f"labctl lab reset {lab_id}"
+        elif pending == "remove":
+            recovery = f"labctl lab rm {lab_id}"
+        elif pending == "remove-vm":
+            vm_name = journal.get("vm_name")
+            if isinstance(vm_name, str) and VM_NAME.fullmatch(vm_name):
+                recovery = f"labctl vm rm {lab_id} {vm_name} --force"
+            else:
+                recovery = "inspect the transaction journal; invalid VM name prevents safe recovery"
+        else:
+            recovery = "inspect the transaction journal; no automatic recovery command is known"
+        return OrchestrationError(
+            f"pending transaction ({pending}) for {lab_id} requires recovery before {operation}: "
+            f"{recovery}"
+        )
+
+    def _require_no_pending_transaction(self, lab_id: str, operation: str) -> None:
+        journal = self._load_journal(lab_id)
+        if journal is not None:
+            raise self._pending_transaction_error(lab_id, journal, operation)
 
     def _validated_create_journal(
         self, journal: dict[str, Any]
@@ -600,10 +624,10 @@ class KVMOrchestrator:
             journal = self._load_journal(lab_id)
             if journal is not None:
                 if journal.get("operation") != "reset":
-                    raise OrchestrationError("another transaction requires recovery")
+                    raise self._pending_transaction_error(lab_id, journal, "grading")
                 self._recover_reset(journal)
                 if self._load_journal(lab_id) is not None:
-                    raise OrchestrationError("reset backup cleanup requires recovery")
+                    raise self._pending_transaction_error(lab_id, journal, "grading")
             yield GradeSession(self, lab_id)
 
     @staticmethod
@@ -766,7 +790,7 @@ class KVMOrchestrator:
             journal = self._load_journal(definition.id)
             if journal is not None:
                 if journal.get("operation") != "create":
-                    raise OrchestrationError("another transaction requires recovery")
+                    raise self._pending_transaction_error(definition.id, journal, "creation")
                 self._recover_create(journal)
             if state_path.exists():
                 raise OrchestrationError(f"lab instance already exists: {definition.id}")
@@ -1878,10 +1902,7 @@ class KVMOrchestrator:
             if journal is not None and (
                 journal.get("operation") != "remove-vm" or journal.get("vm_name") != vm_name
             ):
-                raise OrchestrationError(
-                    f"pending transaction for {lab_id} requires recovery with lab reset "
-                    "before VM removal"
-                )
+                raise self._pending_transaction_error(lab_id, journal, "VM removal")
             return self._remove_vm_locked(lab_id, vm_name, journal)
 
     def _remove_vm_locked(
@@ -1985,11 +2006,14 @@ class KVMOrchestrator:
     def remove(self, lab_id: str, *, force: bool) -> None:
         with self._lab_lock(lab_id):
             journal = self._load_journal(lab_id)
+            if journal is not None and journal.get("operation") == "create":
+                self._recover_create(journal)
+                if not self._state_path(lab_id).exists():
+                    return
+                # A committed create only clears its journal; remove the ready lab normally.
+                journal = self._load_journal(lab_id)
             if journal is not None and journal.get("operation") != "remove":
-                raise OrchestrationError(
-                    f"pending transaction for {lab_id} requires recovery with lab reset "
-                    "before removal"
-                )
+                raise self._pending_transaction_error(lab_id, journal, "removal")
             path = self._state_path(lab_id)
             if not path.exists() and journal is not None:
                 self._unlink_durable(self._journal_path(lab_id))
@@ -2358,7 +2382,7 @@ class KVMOrchestrator:
             recovered_selection: tuple[str, ...] | None = None
             if journal is not None:
                 if journal.get("operation") != "reset":
-                    raise OrchestrationError("another transaction requires recovery")
+                    raise self._pending_transaction_error(lab_id, journal, "reset")
                 _lab_id, _phase, _original, _before, records = self._validated_reset_journal(
                     journal
                 )

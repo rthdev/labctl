@@ -754,6 +754,243 @@ def test_create_crash_journal_is_recovered_on_retry(tmp_path: Path) -> None:
     assert not journal.exists()
 
 
+@pytest.mark.parametrize("split_storage", [False, True])
+@pytest.mark.parametrize("interruption", ["virt-install", "readiness"])
+def test_remove_recovers_interrupted_create(
+    tmp_path: Path, split_storage: bool, interruption: str
+) -> None:
+    class InterruptRunner(FakeRunner):
+        def run(self, argv: list[str], *, check: bool = True) -> CommandResult:
+            if argv[0] == "virt-install" and interruption == "virt-install":
+                raise KeyboardInterrupt
+            return super().run(argv, check=check)
+
+    runner = InterruptRunner()
+    images = ImageStore(tmp_path / "images", runner=runner)
+    _image(images)
+    storage = tmp_path / "storage" if split_storage else None
+    if storage is not None:
+        storage.mkdir()
+        storage.chmod(0o2750)
+    orchestrator = KVMOrchestrator(
+        tmp_path / "data",
+        tmp_path / "state",
+        runner=runner,
+        keygen=_keys,
+        host_keygen=_host_keys,
+        storage_root=storage,
+    )
+
+    def interrupt(*_: object) -> bool:
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        orchestrator.create(
+            _definition(tmp_path), "qemu:///system", images, readiness_probe=interrupt
+        )
+    state = load_state(tmp_path / "state/labs/LX001.json")
+    runner.calls.clear()
+    orchestrator.remove("LX001", force=False)
+
+    assert not (tmp_path / "state/labs/LX001.json").exists()
+    assert not (tmp_path / "state/transactions/LX001.json").exists()
+    assert not (tmp_path / "data/instances/LX001").exists()
+    if storage is not None:
+        assert not Path(state["storage_path"]).exists()
+    assert not any(
+        call[0] in {"virt-install", "qemu-img", "cloud-localds"} for call in runner.calls
+    )
+
+
+def _pending_create(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, committed: bool = False):  # type: ignore[no-untyped-def]
+    runner = FakeRunner()
+    images = ImageStore(tmp_path / "images", runner=runner)
+    _image(images)
+    orchestrator = KVMOrchestrator(
+        tmp_path / "data",
+        tmp_path / "state",
+        runner=runner,
+        keygen=_keys,
+        host_keygen=_host_keys,
+    )
+    journal = tmp_path / "state/transactions/LX001.json"
+
+    def interrupt(*_: object) -> bool:
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patch:
+        if committed:
+            patch.setattr(orchestrator, "_unlink_durable", interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            orchestrator.create(
+                _definition(tmp_path),
+                "qemu:///system",
+                images,
+                readiness_probe=(lambda *_: True) if committed else interrupt,
+            )
+    state = load_state(tmp_path / "state/labs/LX001.json")
+    return orchestrator, runner, images, journal, state
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_remove_finishes_committed_create_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, force: bool
+) -> None:
+    orchestrator, runner, _images, journal, state = _pending_create(
+        tmp_path, monkeypatch, committed=True
+    )
+    assert state["state"] == "ready"
+    runner.calls.clear()
+    orchestrator.remove("LX001", force=force)
+    assert not journal.exists()
+    assert not (tmp_path / "state/labs/LX001.json").exists()
+    assert not (tmp_path / "data/instances/LX001").exists()
+    assert any("dominfo" in call for call in runner.calls)
+
+
+class CreatedResourceRunner(FakeRunner):
+    """Model already-created resources without touching libvirt."""
+
+    def __init__(self, uid: str, *, failure: str = "") -> None:
+        super().__init__()
+        self.uid = uid
+        self.failure = failure
+        self.domain_exists = True
+        self.network_exists = True
+        self.running = True
+
+    def run(self, argv: list[str], *, check: bool = True) -> CommandResult:
+        call = tuple(argv)
+        self.calls.append(call)
+        command = argv[3]
+        resource = argv[4]
+        if command == "dominfo" and self.failure == "probe":
+            return CommandResult(call, 1, "", "permission denied")
+        if command in {"dominfo", "net-info"}:
+            domain = command == "dominfo"
+            exists = self.domain_exists if domain else self.network_exists
+            kind = "domain" if domain else "network"
+            return CommandResult(
+                call,
+                0 if exists else 1,
+                "Active: yes\n" if exists else "",
+                "" if exists else f"failed to get {kind} '{resource}'",
+            )
+        if command == "metadata":
+            uid = "foreign" if self.failure == "foreign-domain" else self.uid
+            return CommandResult(call, 0, _ownership_xml(uid, "domain", "node"), "")
+        if command == "net-dumpxml":
+            uid = "foreign" if self.failure == "foreign-network" else self.uid
+            return CommandResult(
+                call,
+                0,
+                "<network><metadata>" + _ownership_xml(uid, "network") + "</metadata></network>",
+                "",
+            )
+        if command == "domstate":
+            return CommandResult(call, 0, "running" if self.running else "shut off", "")
+        if command == "net-destroy" and self.failure == "destroy":
+            raise RuntimeError("network destroy failed")
+        if command in {"destroy", "shutdown"}:
+            self.running = False
+        if command == "undefine":
+            self.domain_exists = False
+        if command == "net-undefine":
+            self.network_exists = False
+        return CommandResult(call, 0, "", "")
+
+
+@pytest.mark.parametrize("failure", ["probe", "foreign-domain", "foreign-network", "destroy"])
+def test_remove_create_recovery_failure_preserves_journal_and_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    orchestrator, _runner, _images, journal, state = _pending_create(tmp_path, monkeypatch)
+    runner = CreatedResourceRunner(state["instance_uid"], failure=failure)
+    orchestrator.runner = runner
+    before = journal.read_bytes()
+    with pytest.raises(OrchestrationError, match="create recovery failed"):
+        orchestrator.remove("LX001", force=True)
+    assert journal.read_bytes() == before
+    assert (tmp_path / "state/labs/LX001.json").exists()
+    assert (tmp_path / "data/instances/LX001").exists()
+    if failure in {"probe", "foreign-domain"}:
+        assert runner.domain_exists
+        assert not any(call[3] in {"destroy", "undefine"} for call in runner.calls)
+    if failure == "foreign-network":
+        assert runner.network_exists
+        assert not any(call[3] in {"net-destroy", "net-undefine"} for call in runner.calls)
+    # Removing the simulated fault permits retry; already-absent resources are accepted.
+    runner.failure = ""
+    orchestrator.remove("LX001", force=False)
+    assert not runner.domain_exists and not runner.network_exists
+    assert not journal.exists()
+    assert not (tmp_path / "state/labs/LX001.json").exists()
+    assert not (tmp_path / "data/instances/LX001").exists()
+    assert len([call for call in runner.calls if call[3] == "undefine"]) == 1
+
+
+def test_remove_committed_create_preserves_running_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    orchestrator, _runner, _images, journal, state = _pending_create(
+        tmp_path, monkeypatch, committed=True
+    )
+    runner = CreatedResourceRunner(state["instance_uid"])
+    orchestrator.runner = runner
+    with pytest.raises(OrchestrationError, match="lab is running"):
+        orchestrator.remove("LX001", force=False)
+    assert not journal.exists()  # Commit acknowledgement, not rollback.
+    assert load_state(tmp_path / "state/labs/LX001.json") == state
+    assert runner.domain_exists and runner.network_exists
+    assert not any(
+        call[3] in {"destroy", "undefine", "net-destroy", "net-undefine"} for call in runner.calls
+    )
+    orchestrator.remove("LX001", force=True)
+    assert not runner.domain_exists and not runner.network_exists
+    assert not (tmp_path / "state/labs/LX001.json").exists()
+
+
+def test_remove_create_recovery_holds_lifecycle_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    orchestrator, runner, _images, journal, _state = _pending_create(tmp_path, monkeypatch)
+    runner.calls.clear()
+    before = journal.read_bytes()
+    with (
+        file_lock(orchestrator.lock_root / "lab-LX001.lock"),
+        pytest.raises(OrchestrationError, match="lock"),
+    ):
+        orchestrator.remove("LX001", force=True)
+    assert journal.read_bytes() == before
+    assert runner.calls == []
+    recover = orchestrator._recover_create
+
+    def check_lock(transaction):  # type: ignore[no-untyped-def]
+        with (
+            pytest.raises(OrchestrationError, match="lock"),
+            orchestrator._lab_lock("LX001"),
+        ):
+            pytest.fail("recovery must run under the lifecycle lock")
+        recover(transaction)
+
+    monkeypatch.setattr(orchestrator, "_recover_create", check_lock)
+    orchestrator.remove("LX001", force=False)
+    assert not journal.exists()
+
+
+def test_reset_refuses_real_pending_create_without_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    orchestrator, runner, images, journal, state = _pending_create(tmp_path, monkeypatch)
+    before = journal.read_bytes()
+    runner.calls.clear()
+    with pytest.raises(OrchestrationError, match=r"pending transaction \(create\)"):
+        orchestrator.reset("LX001", images)
+    assert journal.read_bytes() == before
+    assert load_state(tmp_path / "state/labs/LX001.json") == state
+    assert runner.calls == []
+
+
 def test_create_fsyncs_generated_artifacts_before_ready_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2776,6 +3013,160 @@ def test_reset_rejects_non_regular_vm_files_before_mutation(tmp_path: Path, fiel
     with pytest.raises(OrchestrationError, match=f"invalid {field} path"):
         orchestrator.reset("LX001", images)
 
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize("vm_name", ["../node", "node; touch victim", None])
+def test_recovery_error_never_suggests_invalid_vm_command(tmp_path: Path, vm_name: object) -> None:
+    runner = FakeRunner()
+    orchestrator = KVMOrchestrator(tmp_path / "data", tmp_path / "state", runner=runner)
+    journal = tmp_path / "state/transactions/LX001.json"
+    journal.parent.mkdir(parents=True)
+    journal.write_text(
+        json.dumps(
+            {"schema_version": 1, "id": "LX001", "operation": "remove-vm", "vm_name": vm_name}
+        )
+    )
+    with pytest.raises(OrchestrationError, match="inspect the transaction journal") as caught:
+        orchestrator.remove("LX001", force=True)
+    assert "labctl vm rm" not in str(caught.value)
+    assert runner.calls == []
+
+
+def test_remove_unbound_create_journal_performs_no_provider_io(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    orchestrator = KVMOrchestrator(tmp_path / "data", tmp_path / "state", runner=runner)
+    uid = "550e8400-e29b-41d4-a716-446655440000"
+    journal = tmp_path / "state/transactions/LX001.json"
+    journal.parent.mkdir(parents=True)
+    journal.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "id": "LX001",
+                "operation": "create",
+                "provider_uri": "qemu:///system",
+                "instance_uid": uid,
+                "instance_owned": True,
+                "network": f"labctl-{uid}-network",
+                "vm_order": [],
+                "vms": {},
+            }
+        )
+    )
+    orchestrator.remove("LX001", force=False)
+    assert not journal.exists()
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize("tamper", ["identity", "material"])
+def test_remove_rejects_tampered_create_journal_before_provider_io(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tamper: str
+) -> None:
+    orchestrator, runner, _images, journal, state = _pending_create(tmp_path, monkeypatch)
+    transaction = json.loads(journal.read_text())
+    if tamper == "identity":
+        transaction["instance_uid"] = "foreign"
+    else:
+        transaction["vms"]["node"]["material"][0] = "foreign"
+    journal.write_text(json.dumps(transaction))
+    before = journal.read_bytes()
+    runner.calls.clear()
+    with pytest.raises(OrchestrationError, match="invalid create transaction"):
+        orchestrator.remove("LX001", force=True)
+    assert journal.read_bytes() == before
+    assert load_state(tmp_path / "state/labs/LX001.json") == state
+    assert (tmp_path / "data/instances/LX001").exists()
+    assert runner.calls == []
+
+
+def test_grade_reset_backup_recovery_error_is_actionable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    orchestrator = KVMOrchestrator(tmp_path / "data", tmp_path / "state", runner=FakeRunner())
+    journal = tmp_path / "state/transactions/LX001.json"
+    journal.parent.mkdir(parents=True)
+    journal.write_text(json.dumps({"schema_version": 1, "id": "LX001", "operation": "reset"}))
+    monkeypatch.setattr(orchestrator, "_recover_reset", lambda _: ({}, True))
+    with (
+        pytest.raises(
+            OrchestrationError, match=r"pending transaction \(reset\).*labctl lab reset LX001"
+        ),
+        orchestrator.grade_session("LX001"),
+    ):
+        pytest.fail("backup cleanup must block grading")
+
+
+@pytest.mark.parametrize(
+    ("pending", "command", "operation"),
+    [
+        (pending, command, operation)
+        for pending, command in [
+            ("create", "labctl lab rm LX001"),
+            ("reset", "labctl lab reset LX001"),
+            ("remove", "labctl lab rm LX001"),
+            ("remove-vm", "labctl vm rm LX001 other --force"),
+            ("unknown", "inspect the transaction journal"),
+        ]
+        for operation in [
+            "start",
+            "stop",
+            "restart",
+            "stop_vm",
+            "remove_vm",
+            "remove",
+            "reconcile",
+            "reset",
+            "create",
+            "grade",
+        ]
+        # Matching recovery paths are exercised separately, not rejection cases.
+        if (pending, operation)
+        not in {
+            ("create", "create"),
+            ("create", "remove"),
+            ("reset", "reset"),
+            ("reset", "grade"),
+            ("remove", "remove"),
+        }
+    ],
+)
+def test_recovery_error_identifies_pending_operation(
+    tmp_path: Path, pending: str, command: str, operation: str
+) -> None:
+    runner = FakeRunner()
+    images = ImageStore(tmp_path / "images", runner=runner)
+    _image(images)
+    definition = _definition(tmp_path)
+    orchestrator = KVMOrchestrator(tmp_path / "data", tmp_path / "state", runner=runner)
+    journal = tmp_path / "state/transactions/LX001.json"
+    journal.parent.mkdir(parents=True)
+    content = json.dumps(
+        {"schema_version": 1, "id": "LX001", "operation": pending, "vm_name": "other"}
+    )
+    journal.write_text(content)
+    with pytest.raises(OrchestrationError) as caught:
+        if operation == "create":
+            orchestrator.create(definition, "qemu:///system", images)
+        elif operation == "reset":
+            orchestrator.reset("LX001", images)
+        elif operation == "grade":
+            with orchestrator.grade_session("LX001"):
+                pytest.fail("pending transaction must block grading")
+        elif operation == "start":
+            orchestrator.start("LX001")
+        elif operation in {"stop", "restart", "remove"}:
+            getattr(orchestrator, operation)("LX001", force=True)
+        elif operation in {"stop_vm", "remove_vm"}:
+            getattr(orchestrator, operation)("LX001", "node", force=True)
+        else:
+            orchestrator.reconcile("LX001", repair=True)
+    assert f"pending transaction ({pending})" in str(caught.value)
+    assert command in str(caught.value)
+    if pending == "create":
+        assert "labctl lab create LX001" in str(caught.value)
+        assert "lab reset" not in str(caught.value)
+    assert journal.read_text() == content
     assert runner.calls == []
 
 

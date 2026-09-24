@@ -41,6 +41,20 @@ elif name == 'install':
             skip = True
         else:
             clean.append(arg)
+    # Model root's install -d: implicit parents stay root-owned; only
+    # explicit operands receive -o/-g. Real install still enforces modes.
+    ownership_file = root / 'ownership.json'
+    ownership = json.loads(ownership_file.read_text()) if ownership_file.exists() else {}
+    owner = args[args.index('-o') + 1] if '-o' in args else 'root'
+    group = args[args.index('-g') + 1] if '-g' in args else 'root'
+    for arg in clean:
+        if arg.startswith(str(root) + '/'):
+            target = Path(arg)
+            for parent in reversed([target, *target.parents]):
+                if parent.is_relative_to(root) and not parent.exists():
+                    ownership.setdefault(str(parent), ['root', 'root'])
+            ownership[str(target)] = [owner, group]
+    ownership_file.write_text(json.dumps(ownership))
     os.execv('/usr/bin/install', ['/usr/bin/install', *clean])
 elif name == 'runuser':
     assert args[:3] == ['-u', 'student', '--']
@@ -51,6 +65,13 @@ elif name == 'usermod':
     with target.open('a') as out:
         out.write(f'student:{lo}:{hi-lo+1}\\n')
 elif name == 'podman':
+    ownership = json.loads((root / 'ownership.json').read_text())
+    for relative in ('student/.config', 'student/.config/containers'):
+        config = root / relative
+        assert ownership[str(config)] == ['student', 'student'], (
+            f'Podman configuration path {relative} is not student-owned'
+        )
+        assert config.stat().st_mode & 0o777 == 0o700
     marker = root / 'image'
     if args[:2] == ['image', 'exists']:
         raise SystemExit(0 if marker.exists() else 1)

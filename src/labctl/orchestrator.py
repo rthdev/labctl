@@ -1208,15 +1208,31 @@ class KVMOrchestrator:
     ) -> str:
         deadline = time.monotonic() + self.address_timeout
         address = ""
-        while time.monotonic() < deadline:
-            output = self._virsh(uri, "domifaddr", domain, "--source", "lease", check=False)
-            for field in output.split():
+        # Bound the actual child, not just retries. GNU timeout preserves the
+        # injectable Runner API; KILL leaves no unbounded termination grace.
+        while (remaining := deadline - time.monotonic()) > 0:
+            result = self.runner.run(
+                [
+                    "timeout",
+                    "--signal=KILL",
+                    str(remaining),
+                    "virsh",
+                    "--connect",
+                    uri,
+                    "domifaddr",
+                    domain,
+                    "--source",
+                    "lease",
+                ],
+                check=False,
+            )
+            for field in result.stdout.split():
                 if "/" in field and field[0].isdigit():
                     address = field.split("/", 1)[0]
                     break
             if address:
                 break
-            time.sleep(1)
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
         if not address:
             raise OrchestrationError(f"readiness phase timed out: address for {domain}")
         write_known_host(address, str(vm["host_public_key"]), Path(str(vm["known_hosts"])))
@@ -1240,22 +1256,41 @@ class KVMOrchestrator:
             f"{vm['ssh_user']}@{address}",
         ]
         deadline = time.monotonic() + self.ssh_timeout
-        while time.monotonic() < deadline:
-            if self.runner.run([*common, "true"], check=False).returncode == 0:
-                break
-            time.sleep(1)
-        else:
-            raise OrchestrationError(f"readiness phase timed out: SSH for {domain}")
-        deadline = time.monotonic() + self.cloud_init_timeout
-        while time.monotonic() < deadline:
+        while (remaining := deadline - time.monotonic()) > 0:
             if (
                 self.runner.run(
-                    [*common, "cloud-init status --wait --long"], check=False
+                    ["timeout", "--signal=KILL", str(remaining), *common, "true"], check=False
                 ).returncode
                 == 0
             ):
+                break
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
+        else:
+            raise OrchestrationError(f"readiness phase timed out: SSH for {domain}")
+        deadline = time.monotonic() + self.cloud_init_timeout
+        while (remaining := deadline - time.monotonic()) > 0:
+            result = self.runner.run(
+                [
+                    "timeout",
+                    "--signal=KILL",
+                    str(remaining),
+                    *common,
+                    "sudo -n cloud-init status --wait --long",
+                ],
+                check=False,
+            )
+            if result.returncode == 0:
                 return address
-            time.sleep(1)
+            # GNU timeout killed by its own process-group signal is -9 through
+            # subprocess, or 137 through a shell. SSH transport failures are 255.
+            if result.returncode not in (-9, 124, 137, 255):
+                # Exit 1 can be either cloud-init failure or sudo refusal. Do not
+                # guess from (or disclose) captured output, which may hold secrets.
+                raise OrchestrationError(
+                    f"readiness phase failed: cloud-init for {domain} "
+                    f"(exit {result.returncode}); check cloud-init and passwordless sudo"
+                )
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
         raise OrchestrationError(f"readiness phase timed out: cloud-init for {domain}")
 
     def stop(

@@ -1519,6 +1519,8 @@ class StateRunner:
     def run(self, argv: list[str], *, check: bool = True) -> CommandResult:
         call = tuple(argv)
         self.calls.append(call)
+        if argv[:2] == ["timeout", "--signal=KILL"]:
+            argv = argv[3:]
         command = argv[3] if argv[0] == "virsh" else argv[0]
         resource = argv[4] if len(argv) > 4 else ""
         if command == "metadata":

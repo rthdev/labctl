@@ -1,5 +1,47 @@
 # Introductory Ansible labs
 
+Every controller includes the lab assignment and grading workflow in
+`/home/student/LAB.md`, owned by `student:student` with mode `0644`. Setup
+creates the guide only if absent, preserving learner notes on subsequent runs.
+Run `labctl grade LAB_ID` on the host, not inside the controller.
+
+## Interactive practice
+
+After creating the lab, enter the controller from the host:
+
+```sh
+labctl lab ssh LAB_ID controller
+```
+
+Inside the controller, use `ssh target` for a two-machine lab; multi-node labs
+use their VM names (`ssh app`, `ssh proxy`, or `ssh web1`, `ssh web2`, `ssh web3`).
+The controller's `LAB.md` lists the aliases for that exercise. No grading run
+is needed to establish access. Return to controller with `exit`.
+
+Run Ansible directly on controller:
+
+```sh
+cd /home/student/ansible-lab
+ansible all -i inventory.ini -m ping
+ansible-playbook -i inventory.ini site.yml
+```
+
+labctl manages the practice inventory and SSH connection settings, with a
+separate controller key and pinned target host keys. Keep custom inventory
+files under another name: managed connection files are refreshed after resets.
+Refresh does not overwrite `site.yml`, roles, or other learner-authored project
+files. A full lab reset still discards controller work; grading resets only the
+managed targets. Graders retain their separate temporary inventories and assess
+the playbook against the clean starting state, not manual target modifications.
+
+## Existing labs
+
+This guide is installed when creating a lab from the updated definitions.
+Existing VMs and their saved setup snapshots are not updated automatically;
+resetting an old lab does not pick up this change. Back up learner work before
+recreating a lab. Do not rerun an entire controller setup script just to add the
+guide: advanced-lab setup can overwrite the starter project.
+
 AN001, AN002, AN101, and AN102 use the same two-machine workflow:
 
 - `controller` persists between grading attempts. Learner work lives in

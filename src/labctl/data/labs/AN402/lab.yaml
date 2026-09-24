@@ -15,6 +15,12 @@ provider: kvm
 grader: grade.py
 grading:
   reset_vms: [web1, web2, web3]
+controller_access:
+  controller: controller
+  targets:
+    web1: [platform]
+    web2: [platform]
+    web3: [platform]
 vms:
   - name: web1
     cpus: 2

@@ -52,6 +52,53 @@ interrupted, recovery retains the journaled selection: a later unqualified
 `lab reset` first rolls back and then repeats only that selection rather than
 widening the operation to every VM.
 
+## Controller practice access
+
+Ansible KVM definitions can explicitly opt into persistent controller-to-target
+practice access:
+
+```yaml
+controller_access:
+  controller: controller
+  targets:
+    target: [web]
+```
+
+The controller and each target must name distinct declared VMs using the
+`student` SSH user. Each target has a non-empty, duplicate-free list of inventory
+groups, matching `[a-z][a-z0-9_]*` and excluding `all` and `ungrouped`. The loader
+accepts this opt-in only for `AN*` labs with the `kvm` provider. The ID prefix
+alone never enables it; definitions without the field keep their old behaviour.
+Multi-node labs declare each target and its groups separately.
+
+Once all participants are running and ready, labctl generates a dedicated key
+inside the controller, authorises only its public key on targets, and writes:
+
+- `/home/student/.ssh/labctl-practice/id_ed25519` (private key stays in guest);
+- `/home/student/.ssh/labctl-practice/known_hosts` and `config`;
+- a managed include at the start of `/home/student/.ssh/config`; and
+- `/home/student/ansible-lab/inventory.ini`.
+
+The SSH aliases are the target VM names. Host keys come from the pinned
+provisioning state, never unauthenticated network discovery. Practice access is
+separate from the grader's temporary credentials and inventory.
+
+Creation, start, restart, and reset refresh managed connection files without
+replacing playbooks or unrelated SSH settings and authorised keys. Do not edit
+managed files; keep custom inventories separately. A selective operation does
+not start unselected peers: if a participant is stopped or missing, state records
+`controller_access_status: pending`. A subsequent start with all participants
+running refreshes access and records `ready`. A failed or interrupted reset also
+leaves access `pending`: disk rollback cannot undo public-key changes already
+written to preserved peers. After ownership-checked recovery, run
+`labctl lab start LAB_ID` to refresh access from the restored controller key.
+Recovery itself does not start unselected peers or claim practice access is ready.
+
+Existing instances use their immutable definition snapshots. Updating installed
+bundled definitions does not add this opt-in to existing labs; recreate after
+backing up learner work. Full reset still replaces the controller disk when the
+controller is selected.
+
 ## Author and Provider Trust
 
 Bundled definitions are application code and receive the package publisher's

@@ -23,19 +23,22 @@ import yaml
 from defusedxml import ElementTree as SafeElementTree
 from defusedxml.common import DefusedXmlException
 
+from labctl import controller_access
 from labctl.definitions import (
     LAB_ID,
     VM_NAME,
+    ControllerAccessDefinition,
     LabDefinition,
     VMDefinition,
     directory_digest,
+    load_definition,
     parse_size,
 )
 from labctl.images import ImageError, ImageStore
 from labctl.kvm import KVMProvider
 from labctl.locks import LockConflict, file_lock
 from labctl.proxy import configure_proxy
-from labctl.ssh import generate_keypair, write_known_host
+from labctl.ssh import build_ssh_command, generate_keypair, write_known_host
 from labctl.state import StateError, load_state, save_json, save_state, validate_state
 from labctl.subprocesses import CommandRunner, Runner
 
@@ -1010,6 +1013,7 @@ class KVMOrchestrator:
                 vm_state["address"] = address
                 vm_state["state"] = "ready"
                 save_state(state_path, state)
+            self._refresh_controller_access(state, readiness_probe)
             logger.debug("committing ready state for lab %s", definition.id)
             self._fsync_tree(instance)
             state["state"] = "ready"
@@ -1055,6 +1059,121 @@ class KVMOrchestrator:
                 detail += "; rollback failures: " + "; ".join(rollback_errors)
             self._log_failure(definition.id, detail)
             raise OrchestrationError(detail) from original
+
+    def _controller_access_definition(
+        self, state: dict[str, Any]
+    ) -> ControllerAccessDefinition | None:
+        # No prefix implicitly enables access. Existing snapshots without the
+        # opt-in remain unchanged, including already-created Ansible labs.
+        if not str(state["id"]).startswith("AN") or "definition_digest" not in state:
+            return None
+        snapshot = self._instance_path(str(state["id"])) / "definition"
+        with self._open_directory_no_symlinks(snapshot):
+            if (snapshot / "lab.yaml").is_symlink() or directory_digest(snapshot) != state[
+                "definition_digest"
+            ]:
+                raise OrchestrationError("practice access definition snapshot is altered")
+            definition = load_definition(snapshot / "lab.yaml")
+        if definition.id != state["id"]:
+            raise OrchestrationError("practice access definition identity mismatch")
+        access = definition.controller_access
+        if access is not None:
+            instance = self._instance_path(str(state["id"]))
+            for name in [access.controller, *(name for name, _ in access.targets)]:
+                vm = state["vms"].get(name)
+                if vm is None:
+                    continue
+                controller_access.public_key(vm["host_public_key"])
+                for field, expected in (
+                    ("identity_file", instance / "keys/id_lab"),
+                    ("known_hosts", instance / "vms" / name / "known_hosts"),
+                ):
+                    if vm.get(field) != str(expected):
+                        raise OrchestrationError("unsafe practice SSH control path")
+                    with self._open_directory_no_symlinks(expected.parent) as parent:
+                        try:
+                            fd = os.open(
+                                expected.name,
+                                os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                dir_fd=parent,
+                            )
+                        except OSError as exc:
+                            raise OrchestrationError("unsafe practice SSH control file") from exc
+                        try:
+                            info = os.fstat(fd)
+                            if (
+                                not stat.S_ISREG(info.st_mode)
+                                or info.st_nlink != 1
+                                or info.st_uid != os.getuid()
+                                or info.st_mode & 0o077
+                            ):
+                                raise OrchestrationError("unsafe practice SSH control file")
+                        finally:
+                            os.close(fd)
+        return definition.controller_access
+
+    def _practice_remote(self, vm: dict[str, Any], script: str, *, operation: str) -> str:
+        if vm.get("ssh_user") != "student":
+            raise OrchestrationError("practice access requires student SSH user")
+        command = build_ssh_command(
+            "student",
+            str(vm["address"]),
+            Path(vm["identity_file"]),
+            Path(vm["known_hosts"]),
+            ("/usr/bin/python3 -c " + shlex.quote(script),),
+        )
+        # Bound both connection and remote work, including a wedged SSH peer.
+        command[1:1] = [
+            "-o",
+            "ConnectTimeout=5",
+            "-o",
+            "ServerAliveInterval=5",
+            "-o",
+            "ServerAliveCountMax=3",
+        ]
+        result = self.runner.run(
+            ["timeout", "--signal=TERM", "--kill-after=5", "60", *command], check=False
+        )
+        if result.returncode:
+            raise OrchestrationError(
+                f"practice access {operation} failed for VM {vm['domain']} "
+                f"(exit {result.returncode})"
+            )
+        return result.stdout
+
+    def _refresh_controller_access(
+        self, state: dict[str, Any], readiness_probe: ReadinessProbe | None
+    ) -> None:
+        access = self._controller_access_definition(state)
+        if access is None:
+            return
+        names = [access.controller, *(name for name, _ in access.targets)]
+        vms = state["vms"]
+        uri = str(state["provider_uri"])
+        # Never broaden a selective lifecycle operation by powering on peers.
+        # A later start refreshes the complete configuration when all are up.
+        if any(name not in vms for name in names):
+            state["controller_access_status"] = "pending"
+            return
+        for name in names:
+            self._verify_domain(uri, str(vms[name]["domain"]), self._uid(state), name)
+        if not all(self._domain_active(uri, str(vms[name]["domain"])) for name in names):
+            state["controller_access_status"] = "pending"
+            return
+        state["controller_access_status"] = "pending"
+        for name in names:
+            vm = vms[name]
+            vm["address"] = self._wait_ready(uri, str(vm["domain"]), vm, readiness_probe)
+        # Validate *all* target data before generating a key or authorizing it.
+        script = controller_access.controller_script(access, vms)
+        public = self._practice_remote(
+            vms[access.controller], controller_access.key_script(), operation="prepare key"
+        )
+        authorize = controller_access.authorize_script(public.strip())
+        for name, _ in access.targets:
+            self._practice_remote(vms[name], authorize, operation="authorize key")
+        self._practice_remote(vms[access.controller], script, operation="publish connections")
+        state["controller_access_status"] = "ready"
 
     def _wait_ready(
         self,
@@ -1577,6 +1696,7 @@ class KVMOrchestrator:
         uri = str(state["provider_uri"])
         vms: dict[str, dict[str, Any]] = state["vms"]
         order = self._start_order(vms, list(state.get("vm_order", vms)), vm_name)
+        self._controller_access_definition(state)
         before = self._observe_power(uri, state, order)
         try:
             for name in order:
@@ -1597,6 +1717,7 @@ class KVMOrchestrator:
             state["state"] = (
                 "ready" if all(vm.get("state") == "ready" for vm in vms.values()) else "degraded"
             )
+            self._refresh_controller_access(state, readiness_probe)
             save_state(path, state)
             return state
         except Exception as original:
@@ -1636,6 +1757,7 @@ class KVMOrchestrator:
         with self._lab_lock(lab_id):
             self._require_no_pending_transaction(lab_id, "restart")
             path, state = self._load(lab_id)
+            self._controller_access_definition(state)
             uri = str(state["provider_uri"])
             vms: dict[str, dict[str, Any]] = state["vms"]
             order = list(state.get("vm_order", vms))
@@ -1666,6 +1788,7 @@ class KVMOrchestrator:
                     self._virsh(uri, "start", domain)
                     self._wait_ready(uri, domain, vms[name], readiness_probe)
                 self._set_power_state(state, before, before)
+                self._refresh_controller_access(state, readiness_probe)
                 save_state(path, state)
                 return state
             except Exception as original:
@@ -2474,6 +2597,12 @@ class KVMOrchestrator:
         power = dict(before)
         failures.extend(self._restore_power(uri, original, selected, power))
         self._set_power_state(original, power, power)
+        # Overlay rollback cannot undo credentials/configuration written to
+        # unselected peers. Never resurrect the journal's old ready assertion.
+        # Recovery stays offline and selective; a later start reconciles access
+        # from the restored controller key when the whole topology is running.
+        if "controller_access_status" in original:
+            original["controller_access_status"] = "pending"
         if failures:
             original["state"] = "degraded"
             original["cleanup_failures"] = failures
@@ -2493,6 +2622,7 @@ class KVMOrchestrator:
     ) -> dict[str, Any]:
         path, state = self._load(lab_id)
         all_order = list(state.get("vm_order", []))
+        self._controller_access_definition(state)
         if vm_names is None:
             order = all_order
         else:
@@ -2574,6 +2704,9 @@ class KVMOrchestrator:
                 self._verify_domain(uri, domain, uid, name)
                 self._virsh(uri, "destroy", domain)
         self._set_power_state(state, {name: False for name in order}, before)
+        # Persist invalidation before changing guest disks or peer credentials.
+        if "controller_access_status" in state:
+            state["controller_access_status"] = "pending"
         save_state(path, state)
         state = load_state(path)
         backups: list[tuple[Path, Path]] = []
@@ -2643,6 +2776,7 @@ class KVMOrchestrator:
             for name, address in addresses.items():
                 state["vms"][name]["address"] = address
             self._set_power_state(state, {name: True for name in order}, before)
+            self._refresh_controller_access(state, readiness_probe)
             save_state(path, state)
             journal["phase"] = "committed"
             save_json(journal_path, journal)
@@ -2686,6 +2820,9 @@ class KVMOrchestrator:
                     rollback.append(f"{name}: {error}")
             rollback.extend(self._restore_power(uri, state, order, before))
             self._set_power_state(state, before, before)
+            # Even a completed refresh is invalid after restoring old disks.
+            if "controller_access_status" in state:
+                state["controller_access_status"] = "pending"
             if rollback:
                 state["state"] = "degraded"
             save_state(path, state)

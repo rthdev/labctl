@@ -235,8 +235,9 @@ def provision(tmp_path, *, enabled=True, fail_remote=False):
                 domain = argv[argv.index("--name") + 1]
                 self.power[domain] = "running"
                 self.addresses.setdefault(domain, f"192.0.2.{10 + len(self.addresses)}")
-            if argv[0] == "virsh":
-                op, domain = argv[3:5]
+            command_argv = argv[3:] if argv[:2] == ["timeout", "--signal=KILL"] else argv
+            if command_argv[0] == "virsh":
+                op, domain = command_argv[3:5]
                 if op in ("shutdown", "destroy"):
                     self.power[domain] = "shut off"
                 if op == "start":

@@ -31,7 +31,7 @@ ensure_subids("/etc/subgid", "--add-subgids")
 CT_SUBIDS
 loginctl enable-linger student
 uid=$(id -u student)
-systemctl start "user@$uid.service"; install -d -m 0700 -o student -g student "/run/user/$uid" /home/student/.config/containers /home/student/.config/containers/systemd
+systemctl start "user@$uid.service"; install -d -m 0700 -o student -g student "/run/user/$uid" /home/student/.config /home/student/.config/containers /home/student/.config/containers/systemd
 runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman image exists docker.io/library/alpine:3.20 || runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman pull docker.io/library/alpine:3.20
 install -d -m 0755 /var/lib/labctl
 if [ ! -e /var/lib/labctl/ct401-boot-baseline ]; then cat /proc/sys/kernel/random/boot_id > /var/lib/labctl/ct401-boot-baseline; fi

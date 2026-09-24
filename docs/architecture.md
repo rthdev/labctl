@@ -6,6 +6,18 @@ key and runs setup once. State records identity and provider URI. Graders are
 separate host processes receiving a minimal protected context. Image storage is
 content-addressed and independent of mutable lab disks.
 
+All KVM labs share address, pinned-SSH, and cloud-init readiness checks. Each
+phase has its own configured deadline; GNU `timeout` bounds every external probe
+to that phase's remaining time, with no extra termination grace. Retry sleeps
+also stay within that budget. Cloud-init status runs as
+`sudo -n cloud-init status --wait --long` because its runtime state can be root-only;
+guest permissions and SSH host-key verification are not relaxed. Wait timeouts
+and SSH transport failures retry within the deadline, while nonzero cloud-init
+status (including recoverable errors), sudo refusal, and command failures stop
+immediately. Exit 1 is ambiguous between sudo refusal and cloud-init failure, so
+the diagnostic names both rather than guessing from potentially sensitive output.
+Captured stdout/stderr is never included in readiness errors or debug traces.
+
 Application-created KVM labs split private control material from files read by
 system QEMU. `DATA/instances/ID` contains the definition snapshot, keys,
 `network.xml`, cloud-init sources, and `known_hosts` under private modes.

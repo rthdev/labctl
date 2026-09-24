@@ -34,7 +34,8 @@ loginctl enable-linger student
 uid=$(id -u student)
 systemctl start "user@$uid.service"
 install -d -m 0700 -o student -g student "/run/user/$uid"
-install -d -m 0700 -o student -g student /home/student/.config/containers
+install -d -m 0700 -o student -g student \
+    /home/student/.config /home/student/.config/containers
 if ! runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman image exists docker.io/library/alpine:3.20; then
     runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman pull docker.io/library/alpine:3.20
 fi

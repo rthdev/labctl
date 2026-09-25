@@ -16,7 +16,7 @@ SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
 export SOURCE_DATE_EPOCH PYTHONHASHSEED=0 TZ=UTC LC_ALL=C.UTF-8
 python3.12 -m pip install 'build==1.3.0'
 python3.12 -m build --sdist --wheel
-python3.12 -m pip install --force-reinstall dist/labctl-0.2.0-py3-none-any.whl
+python3.12 -m pip install --force-reinstall dist/labctl-0.2.1-py3-none-any.whl
 python3.12 -m pytest
 ```
 

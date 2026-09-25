@@ -1,6 +1,6 @@
 # labctl
 
-`labctl` 0.2.0 is a typed Python 3.12+ CLI for reproducible Linux learning labs
+`labctl` 0.2.1 is a typed Python 3.12+ CLI for reproducible Linux learning labs
 on local KVM/libvirt. It validates and snapshots definitions, maintains verified
 content-addressed images, creates isolated networks and QCOW2 overlays,
 provisions with cloud-init, pins SSH host keys, manages lifecycle and drift, and

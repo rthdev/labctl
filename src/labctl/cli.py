@@ -126,6 +126,10 @@ def _globals(parser: argparse.ArgumentParser) -> None:
 def _leaf(subparsers: argparse._SubParsersAction[Parser], name: str) -> Parser:
     parser = subparsers.add_parser(name)
     _globals(parser)
+    if name in {"ls", "list"}:
+        parser.add_argument(
+            "--noheading", action="store_true", help="omit column headings in human-readable tables"
+        )
     return parser
 
 
@@ -358,7 +362,7 @@ def _json_error(message: str, status: ExitStatus, details: object | None = None)
     )
 
 
-def _human(result: CommandResult, *, color: bool = False) -> str:
+def _human(result: CommandResult, *, color: bool = False, noheading: bool = False) -> str:
     if not result.data:
         return ""
     if isinstance(result.data, dict):
@@ -384,11 +388,13 @@ def _human(result: CommandResult, *, color: bool = False) -> str:
         max(len(column.upper()), *(len(row[index]) for row in rows))
         for index, column in enumerate(result.columns)
     ]
-    lines = [
-        "  ".join(
-            column.upper().ljust(widths[index]) for index, column in enumerate(result.columns)
-        ).rstrip()
-    ]
+    lines = []
+    if not noheading:
+        lines.append(
+            "  ".join(
+                column.upper().ljust(widths[index]) for index, column in enumerate(result.columns)
+            ).rstrip()
+        )
     lines.extend(
         "  ".join(value.ljust(widths[index]) for index, value in enumerate(row)).rstrip()
         for row in rows
@@ -496,6 +502,7 @@ def main(
                 rendered = _human(
                     result,
                     color=output.isatty() and "NO_COLOR" not in os.environ,
+                    noheading=getattr(args, "noheading", False),
                 )
             if rendered:
                 print(rendered, file=output)

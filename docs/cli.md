@@ -13,11 +13,11 @@ successful `help` envelope whose data contains the rendered `text`.
 ```text
 labctl version
 labctl completion bash
-labctl labs [--available|--active]
-labctl vms [--lab ID]
-labctl images [--cached] [--available]
-labctl providers
-labctl lab ls|list [--available|--active]
+labctl labs [--available|--active] [--noheading]
+labctl vms [--lab ID] [--noheading]
+labctl images [--cached] [--available] [--noheading]
+labctl providers [--noheading]
+labctl lab ls|list [--available|--active] [--noheading]
 labctl lab create ID [--trust-external] [--allow-untrusted-image]
 labctl lab inspect|start|grade ID
 labctl lab stop|restart ID [--force]
@@ -25,17 +25,17 @@ labctl lab reset ID [--force]
 labctl lab reconcile ID [--repair]
 labctl lab rm ID [--force]
 labctl lab ssh|console ID [VM]
-labctl vm ls|list [--lab ID]
+labctl vm ls|list [--lab ID] [--noheading]
 labctl vm inspect|start ID VM
 labctl vm stop|restart ID VM [--force]
 labctl vm ssh|console ID VM
 labctl vm rm ID VM --force
 labctl image pull NAME
 labctl image import NAME PATH [--checksum SHA256]
-labctl image ls|list [--cached] [--available]
+labctl image ls|list [--cached] [--available] [--noheading]
 labctl image inspect NAME
 labctl image rm NAME [--force]
-labctl provider ls|list
+labctl provider ls|list [--noheading]
 labctl provider inspect NAME
 labctl provider doctor [NAME]
 ```
@@ -49,6 +49,12 @@ Stopping one VM also stops its direct and transitive dependants in reverse
 dependency order. Direct VM removal refuses while any direct or transitive
 dependant remains, even with `--force`; remove dependants first. Successful
 direct removal leaves its declaration recorded as missing and degrades the lab.
+
+All list commands accept `--noheading` after the command (for example,
+`labctl lab list --noheading` or `labctl images --noheading`). It omits only the
+human-readable table's header row; data rows retain their normal alignment.
+Empty lists still print nothing. The option has no effect with `--json` or
+`--quiet`, does not suppress diagnostics, and is not accepted by non-list commands.
 
 Primary results go to stdout; diagnostics and errors go to stderr. Quiet
 suppresses successful output only. JSON success is

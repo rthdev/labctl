@@ -3,8 +3,6 @@ id: CT001
 title: Run your first rootless container
 goal: Run and retain a successful one-shot container as your first rootless Podman workload.
 instructions: |
-  # CT001: Run your first rootless container
-
   ## Objective
   As `student`, create `ct001-hello` from `docker.io/library/alpine:3.20` with the
   exact command `printf 'CT001 container complete\n'`. Let it exit successfully and

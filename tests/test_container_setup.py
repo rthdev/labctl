@@ -141,7 +141,7 @@ def test_setup_twice_preserves_work_and_preloads_once(tmp_path: Path, lab_id: st
         assert result.returncode == 0, result.stderr
         guide = tmp_path / "student/LAB.md"
         if iteration == 0:
-            assert lab_id in guide.read_text()
+            assert not guide.exists(), "Setup must leave guide publication to cloud-init"
             guide.write_text("learner notes retained\n")
         else:
             assert guide.read_text() == "learner notes retained\n"

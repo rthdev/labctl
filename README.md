@@ -1,6 +1,6 @@
 # labctl
 
-`labctl` 0.3.0 is a typed Python 3.12+ CLI for reproducible Linux learning labs
+`labctl` 0.4.0 is a typed Python 3.12+ CLI for reproducible Linux learning labs
 on local KVM/libvirt. It validates and snapshots definitions, maintains verified
 content-addressed images, creates isolated networks and QCOW2 overlays,
 provisions with cloud-init, pins SSH host keys, manages lifecycle and drift, and
@@ -121,6 +121,13 @@ Bundled exercises:
 - `CT001` through `CT402`: a ten-lab rootless Podman path from a first one-shot
   container through services, storage, builds, networking, pods, hardening,
   user Quadlet persistence, and incident recovery
+
+From 0.4.0, each newly created KVM guest receives `~/LAB.md` from the canonical
+Markdown `instructions` in `lab.yaml`. The same complete assignment is available
+through `labctl lab inspect`; setup scripts only prepare exercise state. Existing
+instances retain their saved definitions and cloud-init seeds: upgrading or
+resetting does not retrofit revised assignments. Back up learner work before
+recreating a lab. See [definition authoring](docs/definitions.md#learner-instructions).
 
 Setup scripts do not complete the exercise. Graders run on the host and use
 pinned host keys. Ansible graders execute learner playbooks, so they can change

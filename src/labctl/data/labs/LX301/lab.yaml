@@ -3,10 +3,22 @@ id: LX301
 title: Secure web service with SELinux
 goal: Serve nonstandard web content by adding narrow persistent SELinux policy.
 instructions: |
-  Configure httpd to serve /srv/secureweb on TCP port 8088.
-  Add persistent SELinux port and file-context mappings and apply the labels.
-  Enable and start httpd while SELinux remains enforcing.
-  Do not disable SELinux; follow /home/student/LAB.md.
+  Work on node. Configure httpd to serve `/srv/secureweb` on TCP port 8088,
+  with `/srv/secureweb/index.html` containing `LX301 secure service`.
+  Enable and start httpd; `http://127.0.0.1:8088/` must return that exact text.
+
+  Add a persistent SELinux TCP port mapping for 8088 to `http_port_t` and a
+  persistent file-context mapping to `httpd_sys_content_t` for the web content.
+  Apply it with `restorecon`: the current label of the index must match its
+  persistent policy label, not just an ad-hoc chcon label.
+  Keep SELinux enforcing at runtime and `SELINUX=enforcing` in
+  `/etc/selinux/config`. Do not disable SELinux or make `httpd_t` permissive;
+  broad permissive workarounds fail.
+
+  ## Grading
+
+  Run `labctl grade LX301` on the host where labctl is installed, not inside
+  the learner VM.
 provider: kvm
 grader: grade.py
 vms:

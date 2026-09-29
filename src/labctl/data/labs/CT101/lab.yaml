@@ -3,8 +3,6 @@ id: CT101
 title: Publish a rootless web service
 goal: Publish a container web service on an explicitly loopback-bound rootless port.
 instructions: |
-  # CT101: Rootless web ports
-
   Create running `ct101-web` from `docker.io/library/alpine:3.20`. Serve
   `CT101 rootless web` (newline allowed) at `/index.html` on TCP 8080 in the
   container and publish exactly `127.0.0.1:8080:8080`.

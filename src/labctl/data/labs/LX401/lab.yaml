@@ -3,12 +3,39 @@ id: LX401
 title: Boot failure and root-password recovery
 goal: Recover an unbootable host, reset root safely, and preserve SELinux enforcement.
 instructions: |
-  REBOOT THE VM FROM THE CONSOLE TO BEGIN; the staged faults appear on reboot.
-  Use GRUB recovery to unlock and change root. Replace staged `audit=O` (letter O)
-  with required `audit=0` (digit zero) persistently and in the running kernel.
-  Repair fstab and mount the documented loop-backed lab medium at /srv/recovery.
-  Preserve SELinux enforcing mode and let the staged full-relabel marker complete
-  during the repaired boot, then reach normal multi-user mode with shadow relabeled.
+  **Reboot the VM from labctl's console to begin.** SSH will stop when the staged
+  bad `audit=O` kernel argument (the last character is the letter O, not zero) and
+  fstab entry take effect. Use GRUB recovery/`rd.break` to change and unlock the
+  root password: the root hash must differ from the staged baseline and the
+  account must have usable, unlocked password status.
+
+  Keep SELinux enforcing at runtime and `SELINUX=enforcing` in
+  `/etc/selinux/config`. Request a full relabel before normal boot. The staged
+  `/.autorelabel` marker and deliberately wrong `/etc/shadow` label must be
+  allowed to complete a full relabel during the repaired boot. The marker must
+  be consumed and the shadow label must match policy without pending corrections.
+
+  Permanently replace bad `audit=O` with required `audit=0` (digit zero) in
+  `/etc/default/grub` and every BLS entry `/boot/loader/entries/*.conf`, and boot
+  with the corrected argument. Neither the defaults, boot entries, nor running
+  kernel may contain `audit=O`, `selinux=0`, or `enforcing=0`.
+
+  Replace the bad fstab line with exactly this persistent XFS loop mount:
+
+  ```fstab
+  /var/lib/labctl-media/lx401-recovery.img /srv/recovery xfs loop,nofail 0 0
+  ```
+
+  Run `findmnt --verify --tab-file /etc/fstab` successfully. The source mounted
+  at `/srv/recovery` must be the loop device for that supplied image. Finish
+  in a new, healthy multi-user boot: `systemctl is-system-running` must report
+  `running` and the default target must be `multi-user.target`. Do not disable
+  SELinux or bypass the console-recovery exercise with a pre-reboot SSH repair.
+
+  ## Grading
+
+  Run `labctl grade LX401` on the host where labctl is installed, not inside
+  the learner VM.
 provider: kvm
 grader: grade.py
 vms:

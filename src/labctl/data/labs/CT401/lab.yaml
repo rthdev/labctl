@@ -3,8 +3,6 @@ id: CT401
 title: Persist a rootless service with Quadlet
 goal: Define a rootless user Quadlet service and prove that it starts the intended container after reboot.
 instructions: |
-  # CT401: Rootless Quadlet persistence
-
   Create `~/.config/containers/systemd/ct401-web.container` for `student`. It must
   generate `ct401-web.service`, use `docker.io/library/alpine:3.20`, set
   `ContainerName=ct401-web`, and run a process that keeps the container alive with

@@ -108,7 +108,8 @@ def _assert_lab(tmp_path: Path, lab_id: str, title: str, answers: dict[str, obje
     assert os.access(definition.vms[0].setup, os.X_OK)
     assert len(definition.instructions.splitlines()) >= 6
     setup = definition.vms[0].setup.read_text(encoding="utf-8")
-    assert "/home/student/LAB.md" in setup
+    assert "LAB.md" not in setup
+    assert f"grade {lab_id}" in definition.instructions
     assert "loginctl enable-linger student" in setup
     assert "XDG_RUNTIME_DIR" in setup
     assert "podman pull docker.io/library/alpine:3.20" in setup
@@ -142,8 +143,8 @@ CT_IDS = ("CT001", "CT002", "CT101", "CT102", "CT201", "CT202", "CT301", "CT302"
 
 
 def test_beginner_guides_include_safe_exact_commands() -> None:
-    ct001 = (LABS / "CT001/setup.sh").read_text(encoding="utf-8")
-    ct002 = (LABS / "CT002/setup.sh").read_text(encoding="utf-8")
+    ct001 = load_definition(LABS / "CT001/lab.yaml").instructions
+    ct002 = load_definition(LABS / "CT002/lab.yaml").instructions
 
     assert "podman run --name ct001-hello" in ct001
     assert "--rm" in ct001 and "Do not use" in ct001

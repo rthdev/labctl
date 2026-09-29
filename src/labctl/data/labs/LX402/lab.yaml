@@ -3,10 +3,29 @@ id: LX402
 title: Production incident diagnosis
 goal: Diagnose bounded disk and CPU symptoms and leave durable service recovery evidence.
 instructions: |
-  Investigate the staged API outage, isolated-filesystem pressure, and bounded CPU process.
+  Work on node. Diagnose the failing API, pressure on the isolated 384 MiB
+  incident filesystem, and the intentionally CPU-capped burner (at most 20% CPU).
   Restore capacity without touching the root filesystem or labctl connectivity.
-  Disable the symptom unit and enable the recovered API for future boots.
-  Record root cause and recovery evidence exactly as described in /home/student/LAB.md.
+
+  Keep the ext4 lab-media mount at `/srv/incident` intact and backed by
+  `/var/lib/labctl-media/lx402-incident.img`. Remove the disposable
+  `/srv/incident/runaway.log` and reduce usage strictly below 70% as reported by
+  `df --output=pcent /srv/incident`. Disable and stop `lx402-burner`; leave it
+  disabled and inactive. Enable and start `lx402-api` for durable recovery.
+  `http://127.0.0.1:8090/health` must return exactly `LX402 healthy`.
+
+  Write `/var/log/lx402-incident-report` with exactly these two evidence lines,
+  each followed by a newline:
+
+  ```text
+  root cause: disk pressure and runaway burner
+  recovery: capacity restored; api enabled and healthy
+  ```
+
+  ## Grading
+
+  Run `labctl grade LX402` on the host where labctl is installed, not inside
+  the learner VM.
 provider: kvm
 grader: grade.py
 vms:

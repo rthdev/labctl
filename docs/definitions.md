@@ -18,7 +18,16 @@ schema_version: 1
 id: LX001
 title: Users and permissions
 goal: Configure shared access.
-instructions: Complete the assignment on node.
+instructions: |
+  ## Required outcomes
+  Work on node. Create the `labops` group and the `opsadmin` user, with
+  `opsadmin` explicitly included in the `labops` group membership list.
+  Create `/srv/labshare` owned by `opsadmin:labops`, mode `2770`, and
+  `/srv/labshare/operations.txt` with the same owner and group, mode `0660`.
+  Preserve the directory's setgid bit.
+
+  ## Validation
+  Run `labctl lab grade LX001` on the host, not inside the VM.
 provider: kvm
 grader: grade.py
 # Optional: permits selective reset only when grade --reset is requested.
@@ -52,6 +61,43 @@ power state participate in the reset transaction. If a selective reset is
 interrupted, recovery retains the journaled selection: a later unqualified
 `lab reset` first rolls back and then repeats only that selection rather than
 widening the operation to every VM.
+
+## Learner instructions
+
+From 0.4.0, `instructions` is the canonical, self-contained Markdown assignment.
+Use a YAML literal block (`|`) to preserve paragraphs, lists and fenced examples.
+Keep `title` as a short display name and `goal` as a one-sentence learning
+objective; neither replaces the assignment.
+
+Document the starting state, required observable outcomes, exact paths and
+names, expected content, permissions, persistence/reboot requirements, and
+forbidden shortcuts. Separate controller, target and host actions explicitly.
+Include practice and validation guidance, but do not pre-complete the exercise
+or require learners to read grader source to discover acceptance criteria.
+
+The KVM provisioning layer publishes `LAB.md` in the configured SSH user's home
+(default `/home/student/LAB.md`) on every VM. It adds a heading with the lab ID
+and title, then preserves the `instructions` body unchanged. The file is owned
+by the guest user and group with mode `0644`. Host-side `lab inspect` displays
+the same assignment body. Multi-VM labs receive the same complete document so
+that the assignment remains available from each VM.
+
+Setup scripts prepare packages, files, services and staged faults only. Do not
+write a second `LAB.md`, interpolate instructions into shell commands, or keep
+an abbreviated copy in setup scripts. Custom setup scripts must not overwrite
+the centrally delivered document. This is a provisioning convention using the
+existing schema-v1 `instructions` field, not a new definition format.
+
+Assignments are creation-time data from the saved definition. Existing labs
+retain their immutable snapshots and cloud-init seeds; neither upgrading labctl
+nor resetting an existing lab imports revised installed instructions. Recreate
+after backing up learner work to adopt updated assignments. A manual,
+document-only correction is possible, but do not rerun setup scripts to update
+documentation: they can overwrite learner work or restage faults.
+
+Tests must verify guest delivery through the actual provisioning path and
+check concrete learner requirements against grader expectations. Testing only
+that a setup script mentions `LAB.md` cannot detect an incomplete assignment.
 
 ## Controller practice access
 

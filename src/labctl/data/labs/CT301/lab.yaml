@@ -3,8 +3,6 @@ id: CT301
 title: Run a configured application pod
 goal: Run cooperating containers in one rootless pod with explicit read-only configuration.
 instructions: |
-  # CT301: Pod and configuration
-
   Write `/home/student/ct301/app.conf` as exactly `mode=training` plus newline.
   Create pod `ct301-stack` and running Alpine containers `ct301-web` and
   `ct301-checker` in it. `ct301-web` needs `APP_MODE=training` and a read-only bind

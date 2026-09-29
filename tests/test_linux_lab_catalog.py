@@ -98,7 +98,8 @@ def _assert_lab(tmp_path: Path, lab_id: str, title: str, answers: dict[str, obje
     assert len(definition.goal.split()) >= 4
     assert len(definition.instructions.splitlines()) >= 4
     setup = vm.setup.read_text(encoding="utf-8")
-    assert "/home/student/LAB.md" in setup
+    assert "LAB.md" not in setup
+    assert f"grade {lab_id}" in definition.instructions
     passed = _run(tmp_path, lab_id, answers)
     assert passed.returncode == 0, passed.stderr
     lines = passed.stdout.splitlines()
@@ -363,7 +364,7 @@ def test_linux_lab_review_blockers_are_hardened() -> None:
     assert "chcon" in lx401_setup and "/etc/shadow" in lx401_setup
     assert "touch /.autorelabel" in lx401_setup
     assert lx401_setup.index("chcon -t user_tmp_t /etc/shadow") > lx401_setup.index(
-        "chown student:student /home/student/LAB.md"
+        "systemctl set-default multi-user.target"
     )
     assert lx401_setup.index("touch /.autorelabel") > lx401_setup.index(
         "chcon -t user_tmp_t /etc/shadow"

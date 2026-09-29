@@ -3,8 +3,6 @@ id: CT102
 title: Persist data in a named volume
 goal: Preserve application data in a rootless named volume attached to a replacement-safe container.
 instructions: |
-  # CT102: Named-volume persistence
-
   Create named volume `ct102-data`. Create running `ct102-writer` from
   `docker.io/library/alpine:3.20`, mounting the volume at `/data`, and write exactly
   `CT102 durable data` plus a newline to `/data/message.txt`. You may remove and

@@ -3,8 +3,6 @@ id: CT202
 title: Connect services on a private network
 goal: Connect an API and client through DNS on an internal rootless Podman network.
 instructions: |
-  # CT202: Private container networking
-
   Create internal network `ct202-private`. Run `ct202-api` and `ct202-client` from
   the preloaded `docker.io/library/alpine:3.20`, both attached only to that network.
   Give the API alias `api`; serve exact body `CT202 private API` at `/health` on

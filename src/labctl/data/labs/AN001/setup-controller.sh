@@ -31,7 +31,7 @@ On controller, work in /home/student/ansible-lab and complete site.yml.
 Target the web host; labctl supplies a fresh dynamic inventory during grading.
 The playbook must install nginx, enable and start it, and deploy
 /usr/share/nginx/html/index.html as root:root mode 0644 with the exact content
-"Managed by Ansible". Run labctl grade AN001 when ready. Grading preserves the
+"Managed by Ansible". Run labctl grade AN001 when ready. Grading with --reset preserves the
 controller and your site.yml, resets only target, then executes your playbook
 from controller against that clean target.
 
@@ -59,9 +59,9 @@ inventories in a separate file; labctl refreshes the managed connection files
 after resets. Your playbook and supporting project files are not replaced by
 connection refresh. A full lab reset still discards controller work.
 
-Practice runs change the current targets. Grading instead resets managed targets
-and uses a separate temporary inventory, so your playbook must work from the
-lab's clean starting state without manual target preparation.
+Practice runs change the current targets. Default grading uses that current state
+without resetting disks; it still executes your playbook using a separate temporary
+inventory. Use --reset to prove it works from the lab's clean starting state.
 
 ## Workflow and grading
 
@@ -73,12 +73,20 @@ this controller VM:
 
 ```sh
 labctl grade AN001
+# Optional destructive clean-baseline check:
+labctl grade AN001 --reset
 ```
 
-Grading preserves controller and your project, resets only the managed VM(s)
+Default current-state grading does not reset or start VMs. Start stopped labs
+on the host with `labctl lab start AN001` first. Both modes execute your playbook.
+The clean-baseline --reset mode names the target disks to destroy and asks [y/N]
+(default No). Add --yes only to bypass confirmation; noninteractive, JSON, and
+quiet reset runs require --yes. The controller and learner project are preserved.
+
+With --reset, grading preserves controller and your project, resets only the managed VM(s)
 (target), supplies a fresh dynamic inventory and SSH access, then runs
 /home/student/ansible-lab/site.yml from controller and checks the resulting state.
-Do not rely on manual changes to managed VMs surviving grading. The temporary
+Do not rely on manual changes surviving --reset or the playbook itself. The temporary
 grading inventory is removed afterwards; you do not need to create it yourself.
 LAB_INSTRUCTIONS
     chown student:student /home/student/LAB.md

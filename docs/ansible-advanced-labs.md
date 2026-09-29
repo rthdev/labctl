@@ -30,11 +30,20 @@ labctl manages the practice inventory and SSH connection settings, with a
 separate controller key and pinned target host keys. Keep custom inventory
 files under another name: managed connection files are refreshed after resets.
 Refresh does not overwrite `site.yml`, roles, or other learner-authored project
-files. A full lab reset still discards controller work; grading resets only the
-managed targets. Graders retain their separate temporary inventories and assess
-the playbook against the clean starting state, not manual target modifications.
+files. A full lab reset still discards controller work. Default grading is
+current-state: it runs the playbook and checks outcomes without resetting disks.
+Use `labctl grade LAB_ID --reset` for a clean-baseline check, resetting only the
+managed targets and preserving the controller. The destructive prompt names the
+targets and defaults to No; `--yes` bypasses only confirmation and is required
+with noninteractive, JSON, or quiet reset runs. Start stopped labs explicitly
+before current-state grading. Both modes use separate temporary grader inventories;
+use --reset to prove convergence without manual target preparation.
 
 ## Existing labs
+
+The 0.3.0 host CLI uses current-state grading even for existing instances with
+older guide text promising automatic resets. Request `--reset` explicitly; its
+scope still comes from that instance's saved definition, not updated bundled YAML.
 
 This guide is installed when creating a lab from the updated definitions.
 Existing VMs and their saved setup snapshots are not updated automatically;
@@ -42,7 +51,7 @@ resetting an old lab does not pick up this change. Back up learner work before
 recreating a lab. Do not rerun an entire controller setup script just to add the
 guide: advanced-lab setup can overwrite the starter project.
 
-AN401 and AN402 are outcome-graded labs. Their graders run the learner's automation from a persistent controller against managed VMs that `labctl` resets immediately before each grade. The graders do not inspect `site.yml`, roles, task ordering, or module selection.
+AN401 and AN402 are outcome-graded labs. Their graders run the learner's automation from a persistent controller against managed VMs that `labctl` resets only when `--reset` is requested. The graders do not inspect `site.yml`, roles, task ordering, or module selection.
 
 ## AN401: repair fragile application automation
 
@@ -55,7 +64,7 @@ The controller contains an intentionally fragile project at `/home/student/ansib
 - `http://127.0.0.1/` returns `AN401 application ready`.
 - The playbook succeeds twice; the second recap reports zero changed, unreachable, and failed hosts.
 
-Grading resets only `target`, preserving the controller project.
+Grading with `--reset` resets only `target`, preserving the controller project.
 
 ## AN402: recover a multi-node platform
 

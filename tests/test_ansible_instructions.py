@@ -64,6 +64,9 @@ os.execv('/usr/bin/install', ['install', *clean])
             assert f"# {definition.id}" in text
             assert definition.instructions.strip().replace("/home/student", str(home)) in text
             assert f"labctl grade {definition.id}" in text
+            assert f"labctl grade {definition.id} --reset" in text
+            assert "current-state" in text and "clean-baseline" in text
+            assert "--yes" in text and "[y/N]" in text
             assert "on the host" in text
             assert "ansible all -i inventory.ini -m ping" in text
             assert "ansible-playbook -i inventory.ini site.yml" in text

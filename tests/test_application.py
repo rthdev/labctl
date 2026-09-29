@@ -123,8 +123,9 @@ def test_grade_refuses_resource_drift_without_repair(
 
 
 @pytest.mark.parametrize("reset_vms", [("target",), ()])
+@pytest.mark.parametrize("reset", [False, True])
 def test_grade_resets_only_opted_in_vms_and_uses_refreshed_state(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reset_vms: tuple[str, ...]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reset_vms: tuple[str, ...], reset: bool
 ) -> None:
     lab_id = "AN001" if reset_vms else "LX001"
     state_path = tmp_path / f"state/labs/{lab_id}.json"
@@ -186,10 +187,18 @@ def test_grade_resets_only_opted_in_vms_and_uses_refreshed_state(
     monkeypatch.setattr("labctl.application.run_grader", grade)
     app = Application(data_root=tmp_path / "data", state_root=tmp_path / "state")
 
-    app._lab_grade(SimpleNamespace(lab=lab_id), Config())
+    args = SimpleNamespace(lab=lab_id, reset=reset, yes=True)
+    if reset and not reset_vms:
+        with pytest.raises(LabctlError, match="no grading reset targets"):
+            app._lab_grade(args, Config())
+        assert not calls and not observed
+        return
+    result = app._lab_grade(args, Config())
 
-    assert calls == ([(lab_id, reset_vms)] if reset_vms else [])
-    assert observed["hosts"]["target"]["address"] == ("192.0.2.99" if reset_vms else "192.0.2.10")
+    assert calls == ([(lab_id, reset_vms)] if reset else [])
+    assert observed["hosts"]["target"]["address"] == ("192.0.2.99" if reset else "192.0.2.10")
+    assert result.data["mode"] == ("clean-baseline" if reset else "current-state")
+    assert result.data["reset_vms"] == (list(reset_vms) if reset else [])
 
 
 def test_grade_holds_one_lifecycle_session_through_grader_and_starts_preserved_vm(
@@ -262,7 +271,7 @@ def test_grade_holds_one_lifecycle_session_through_grader_and_starts_preserved_v
     monkeypatch.setattr("labctl.application.run_grader", grade)
     app = Application(data_root=tmp_path / "data", state_root=tmp_path / "state")
 
-    app._lab_grade(SimpleNamespace(lab=lab_id), Config())
+    app._lab_grade(SimpleNamespace(lab=lab_id, reset=True, yes=True), Config())
 
     assert events == [
         "lock-enter",

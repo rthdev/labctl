@@ -30,11 +30,20 @@ labctl manages the practice inventory and SSH connection settings, with a
 separate controller key and pinned target host keys. Keep custom inventory
 files under another name: managed connection files are refreshed after resets.
 Refresh does not overwrite `site.yml`, roles, or other learner-authored project
-files. A full lab reset still discards controller work; grading resets only the
-managed targets. Graders retain their separate temporary inventories and assess
-the playbook against the clean starting state, not manual target modifications.
+files. A full lab reset still discards controller work. Default grading is
+current-state: it runs the playbook and checks outcomes without resetting disks.
+Use `labctl grade LAB_ID --reset` for a clean-baseline check, resetting only the
+managed targets and preserving the controller. The destructive prompt names the
+targets and defaults to No; `--yes` bypasses only confirmation and is required
+with noninteractive, JSON, or quiet reset runs. Start stopped labs explicitly
+before current-state grading. Both modes use separate temporary grader inventories;
+use --reset to prove convergence without manual target preparation.
 
 ## Existing labs
+
+The 0.3.0 host CLI uses current-state grading even for existing instances with
+older guide text promising automatic resets. Request `--reset` explicitly; its
+scope still comes from that instance's saved definition, not updated bundled YAML.
 
 This guide is installed when creating a lab from the updated definitions.
 Existing VMs and their saved setup snapshots are not updated automatically;
@@ -46,8 +55,8 @@ AN001, AN002, AN101, and AN102 use the same two-machine workflow:
 
 - `controller` persists between grading attempts. Learner work lives in
   `/home/student/ansible-lab/site.yml` (with supporting files beneath the same directory).
-- `target` is reset immediately before grading so the playbook must converge a clean Rocky
-  Linux 9 host.
+- `target` is reset only with `--reset`, proving the playbook converges a clean Rocky
+  Linux 9 host. Default grading keeps its current state.
 - The grader creates a lab-specific controller SSH key, adds only its public key to the target,
   and writes a temporary inventory using the refreshed target address and pinned host key.
   The labctl management private key is never copied to the controller.
@@ -59,7 +68,7 @@ AN001, AN002, AN101, and AN102 use the same two-machine workflow:
 The learner creates the `automation` group, adds `deploy` and `auditor`, creates the setgid
 `/srv/automation` directory, and installs the controller-provided public key as deploy's sole
 authorized key. Grading checks account memberships, directory ownership and mode, and the exact
-authorized-key outcome after a target reset.
+authorized-key outcome after running the playbook (optionally from a reset target).
 
 ## AN101 — variables, templates, and handlers
 

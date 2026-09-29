@@ -1,6 +1,6 @@
 # labctl
 
-`labctl` 0.2.1 is a typed Python 3.12+ CLI for reproducible Linux learning labs
+`labctl` 0.3.0 is a typed Python 3.12+ CLI for reproducible Linux learning labs
 on local KVM/libvirt. It validates and snapshots definitions, maintains verified
 content-addressed images, creates isolated networks and QCOW2 overlays,
 provisions with cloud-init, pins SSH host keys, manages lifecycle and drift, and
@@ -116,15 +116,32 @@ override it only through `libvirt_storage_root` in TOML or
 Bundled exercises:
 
 - `LX001`: users, groups, ownership, and permissions on one Rocky Linux 9 node
-- `AN001`: an idempotent local-inventory Ansible nginx exercise on one Rocky
-  Linux 9 node
+- `AN001`: an Ansible nginx exercise with a persistent controller and a managed
+  Rocky Linux 9 target
 - `CT001` through `CT402`: a ten-lab rootless Podman path from a first one-shot
   container through services, storage, builds, networking, pods, hardening,
   user Quadlet persistence, and incident recovery
 
-Setup scripts are safe to rerun and do not complete the exercise. Graders
-run on the host and use pinned host keys; they do not install or modify guest
-state. The container curriculum and its supply constraints are described in
+Setup scripts do not complete the exercise. Graders run on the host and use
+pinned host keys. Ansible graders execute learner playbooks, so they can change
+guest state in both grading modes:
+
+```console
+labctl lab grade AN001
+labctl grade AN001 --reset
+labctl --json grade AN001 --reset --yes
+```
+
+Default **current-state** grading keeps disks intact and does not start stopped
+VMs. **Clean-baseline** (`--reset`) destroys only declared managed target disks,
+preserving the controller and learner project. It names targets and asks for
+confirmation (default No); noninteractive, JSON, and quiet resets require
+`--yes`. `--yes` only skips confirmation, never enables reset or bypasses safety
+checks. Labs without grading reset targets (including bundled LX/CT) reject it.
+Human results show the mode and all checks; interactive grading shows elapsed
+progress, disabled for redirected, JSON, quiet, and debug output.
+
+The container curriculum and its supply constraints are described in
 [container labs](docs/container-labs.md). Details are in
 [docs/grading.md](docs/grading.md).
 

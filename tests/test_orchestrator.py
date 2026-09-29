@@ -2747,7 +2747,7 @@ def test_normal_reset_after_selective_reset_crash_preserves_journal_selection(
     )
 
 
-def test_grade_session_recovers_interrupted_reset_before_fresh_selective_reset(
+def test_grade_session_refuses_interrupted_reset_until_explicit_recovery(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     domain, overlay, images, _vms = _single_reset_fixture(tmp_path)
@@ -2768,12 +2768,22 @@ def test_grade_session_recovers_interrupted_reset_before_fresh_selective_reset(
     with pytest.raises(KeyboardInterrupt):
         orchestrator.reset("LX001", images, vm_names=("node",), readiness_probe=lambda *_: True)
 
-    with orchestrator.grade_session("LX001") as session:
-        result = session.reset(images, vm_names=("node",))
+    calls = list(runner.calls)
+    journal = tmp_path / "state/transactions/LX001.json"
+    before = journal.read_bytes()
+    with (
+        pytest.raises(OrchestrationError, match=r"labctl lab reset LX001"),
+        orchestrator.grade_session("LX001"),
+    ):
+        pytest.fail("grading must not recover a reset implicitly")
+    assert runner.calls == calls
+    assert journal.read_bytes() == before
+    assert not overlay.exists()
 
+    result = orchestrator.reset("LX001", images, readiness_probe=lambda *_: True)
     assert result["state"] == "ready"
     assert overlay.read_bytes() == b"replacement overlay"
-    assert not (tmp_path / "state/transactions/LX001.json").exists()
+    assert not journal.exists()
 
 
 def test_start_refreshes_address_without_replacing_stopped_vm_disk(tmp_path: Path) -> None:

@@ -4,7 +4,7 @@ title: Repair fragile Ansible application automation
 goal: Repair a fragile Ansible project so it configures a secure, idempotent web application target.
 instructions: |
   On controller, repair the supplied project in /home/student/ansible-lab. Do not
-  replace the exercise with manual target changes: grading resets target, refreshes
+  replace the exercise with manual target changes: grading with --reset resets target, refreshes
   inventory, and runs site.yml twice. The target must serve the AN401 application,
   keep its application configuration at root:apache mode 0640, and leave the second
   playbook run with changed=0 and failures=0. Any Ansible structure or modules that

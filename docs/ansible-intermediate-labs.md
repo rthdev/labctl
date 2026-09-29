@@ -30,11 +30,20 @@ labctl manages the practice inventory and SSH connection settings, with a
 separate controller key and pinned target host keys. Keep custom inventory
 files under another name: managed connection files are refreshed after resets.
 Refresh does not overwrite `site.yml`, roles, or other learner-authored project
-files. A full lab reset still discards controller work; grading resets only the
-managed targets. Graders retain their separate temporary inventories and assess
-the playbook against the clean starting state, not manual target modifications.
+files. A full lab reset still discards controller work. Default grading is
+current-state: it runs the playbook and checks outcomes without resetting disks.
+Use `labctl grade LAB_ID --reset` for a clean-baseline check, resetting only the
+managed targets and preserving the controller. The destructive prompt names the
+targets and defaults to No; `--yes` bypasses only confirmation and is required
+with noninteractive, JSON, or quiet reset runs. Start stopped labs explicitly
+before current-state grading. Both modes use separate temporary grader inventories;
+use --reset to prove convergence without manual target preparation.
 
 ## Existing labs
+
+The 0.3.0 host CLI uses current-state grading even for existing instances with
+older guide text promising automatic resets. Request `--reset` explicitly; its
+scope still comes from that instance's saved definition, not updated bundled YAML.
 
 This guide is installed when creating a lab from the updated definitions.
 Existing VMs and their saved setup snapshots are not updated automatically;
@@ -42,7 +51,7 @@ resetting an old lab does not pick up this change. Back up learner work before
 recreating a lab. Do not rerun an entire controller setup script just to add the
 guide: advanced-lab setup can overwrite the starter project.
 
-These labs keep the learner's `site.yml` on a persistent controller while resetting every managed target immediately before grading. The controller includes `ansible-core`; grading creates a dynamic inventory from refreshed target addresses.
+These labs keep the learner's `site.yml` on a persistent controller with an optional `--reset` of every declared managed target before grading. The controller includes `ansible-core`; grading creates a dynamic inventory from refreshed target addresses.
 
 | Lab | Topology | Outcome |
 | --- | --- | --- |

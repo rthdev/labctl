@@ -8,8 +8,9 @@ import logging
 import os
 import sys
 import threading
-from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+import time
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import ExitStack, contextmanager
 from typing import Never, Protocol, TextIO
 
 from labctl import __version__
@@ -24,7 +25,7 @@ _SPINNER_INTERVAL = 0.1
 
 
 @contextmanager
-def _spinner(stream: TextIO, label: str, *, enabled: bool) -> Iterator[None]:
+def _spinner(stream: TextIO, label: str | Callable[[], str], *, enabled: bool) -> Iterator[None]:
     if not enabled:
         yield
         return
@@ -33,7 +34,9 @@ def _spinner(stream: TextIO, label: str, *, enabled: bool) -> Iterator[None]:
     def animate() -> None:
         index = 0
         while not stopped.is_set():
-            stream.write(f"\r{_SPINNER_FRAMES[index % len(_SPINNER_FRAMES)]} {label}")
+            text = label() if callable(label) else label
+            clear = "\033[2K" if callable(label) else ""
+            stream.write(f"\r{clear}{_SPINNER_FRAMES[index % len(_SPINNER_FRAMES)]} {text}")
             stream.flush()
             index += 1
             stopped.wait(_SPINNER_INTERVAL)
@@ -47,6 +50,32 @@ def _spinner(stream: TextIO, label: str, *, enabled: bool) -> Iterator[None]:
         worker.join()
         stream.write("\r\033[2K")
         stream.flush()
+
+
+@contextmanager
+def _grading_progress(
+    stream: TextIO, label: str, *, enabled: bool
+) -> Iterator[Callable[[str], None]]:
+    """Start only after application validation/consent; clean up on every exit."""
+    stage = ""
+    started: float | None = None
+    with ExitStack() as stack:
+
+        def update(value: str) -> None:
+            nonlocal stage, started
+            stage = value
+            if enabled and started is None:
+                started = time.monotonic()
+                origin = started
+                stack.enter_context(
+                    _spinner(
+                        stream,
+                        lambda: f"{label}: {stage} ({time.monotonic() - origin:.1f}s elapsed)",
+                        enabled=True,
+                    )
+                )
+
+        yield update
 
 
 @contextmanager
@@ -171,6 +200,22 @@ def build_parser() -> Parser:
     for name in ("start", "grade"):
         command = _leaf(lab_commands, name)
         command.add_argument("lab")
+        if name == "grade":
+            command.add_argument(
+                "--reset",
+                action="store_true",
+                help="destroy and rebuild only the snapshot's grading reset targets",
+            )
+            command.add_argument(
+                "--yes", action="store_true", help="skip reset confirmation (does not enable reset)"
+            )
+    grade_alias = groups.add_parser(
+        "grade",
+        parents=[lab_commands.choices["grade"]],
+        add_help=False,
+        help="alias for lab grade",
+    )
+    grade_alias.set_defaults(group="lab", command="grade")
     for name in ("stop", "restart", "reset", "rm"):
         command = _leaf(lab_commands, name)
         command.add_argument("lab")
@@ -379,6 +424,14 @@ def _human(result: CommandResult, *, color: bool = False, noheading: bool = Fals
                         else line
                         for line in rendered
                     ]
+                mode = result.data.get("mode")
+                if mode:
+                    rendered.insert(0, f"Grading mode: {mode}")
+                if mode == "current-state" and result.data.get("reset_available"):
+                    rendered.append(
+                        "For a clean baseline, use: "
+                        f"labctl lab grade {result.data['lab_id']} --reset"
+                    )
                 return "\n".join(rendered)
         return "\n".join(f"{key}: {value}" for key, value in result.data.items())
     if not result.columns:
@@ -454,8 +507,15 @@ def main(
                 f"Pulling {getattr(args, 'image', '')}",
                 enabled=show_progress and args.group == "image" and args.command == "pull",
             ) as progress,
+            _grading_progress(
+                output,
+                f"Grading lab {getattr(args, 'lab', '')} "
+                f"[{'clean-baseline' if getattr(args, 'reset', False) else 'current-state'}]",
+                enabled=show_progress and args.group == "lab" and args.command == "grade",
+            ) as grade_progress,
         ):
             args.download_progress = progress
+            args.grade_progress = grade_progress
             result = (application or Application()).execute(args)
         if not args.json:
             for diagnostic in result.diagnostics:

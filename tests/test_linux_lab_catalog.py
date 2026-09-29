@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -147,7 +148,12 @@ def test_lx101_packages_services_and_logs(tmp_path: Path) -> None:
             "/usr/bin/systemctl is-enabled httpd": "enabled",
             "/usr/bin/systemctl is-active httpd": "active",
             "/usr/bin/curl -fsS http://127.0.0.1/health": "LX101 healthy",
-            """/usr/bin/sudo /usr/bin/bash -c 'systemd-analyze cat-config systemd/journald.conf | awk -F= "/^[[:space:]]*Storage[[:space:]]*=/{value=\\$2} END {gsub(/[[:space:]]/, "", value); if (value == "persistent") print value}"'""": "persistent",
+            "/usr/bin/sudo /usr/bin/bash -o pipefail -c "
+            + shlex.quote(
+                "systemd-analyze cat-config systemd/journald.conf | "
+                "awk -F= '/^[[:space:]]*Storage[[:space:]]*=/{value=$2} "
+                'END {gsub(/[[:space:]]/, "", value); if (value == "persistent") print value}\''
+            ): "persistent",
             """/usr/bin/sudo /usr/bin/bash -c 'test -d /var/log/journal && journalctl --directory=/var/log/journal --quiet -u httpd -n 1 | grep -q . && echo operating'""": "operating",
         },
     )

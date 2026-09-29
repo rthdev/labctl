@@ -14,3 +14,4 @@ systemctl enable --now firewalld
 firewall-cmd --permanent --zone=public --remove-service=http >/dev/null 2>&1 || true
 firewall-cmd --permanent --zone=public --add-service=cockpit >/dev/null
 firewall-cmd --reload >/dev/null
+systemctl disable --now firewalld

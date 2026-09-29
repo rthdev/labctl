@@ -15,7 +15,7 @@ instructions: |
   Keep it root:root mode 0644, ensure chrony is installed, and ensure chronyd is
   enabled and active. Use
   variables, a template, and a notified handler so an unchanged second run does
-  not restart chronyd. Grading resets only target, then runs the playbook twice
+  not restart chronyd. Grading runs the playbook twice (with --reset, it first resets target)
   from the persistent controller and checks the resulting service state and PID.
 provider: kvm
 grader: grade.py

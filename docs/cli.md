@@ -19,7 +19,9 @@ labctl images [--cached] [--available] [--noheading]
 labctl providers [--noheading]
 labctl lab ls|list [--available|--active] [--noheading]
 labctl lab create ID [--trust-external] [--allow-untrusted-image]
-labctl lab inspect|start|grade ID
+labctl lab inspect|start ID
+labctl lab grade ID [--reset] [--yes]
+labctl grade ID [--reset] [--yes]
 labctl lab stop|restart ID [--force]
 labctl lab reset ID [--force]
 labctl lab reconcile ID [--repair]
@@ -41,7 +43,7 @@ labctl provider doctor [NAME]
 ```
 
 `--available` means definitions without state; `--active` means every recorded
-instance. Reset prompts on a terminal and requires `--force` non-interactively.
+instance. `lab reset` prompts on a terminal and requires `--force` non-interactively.
 Removal needs force only while running. Stop always tries graceful shutdown;
 force permits destroy after timeout. Reconcile is dry-run by default; repair
 changes state only and never creates, deletes, adopts, or rebinds a resource.
@@ -55,6 +57,16 @@ All list commands accept `--noheading` after the command (for example,
 human-readable table's header row; data rows retain their normal alignment.
 Empty lists still print nothing. The option has no effect with `--json` or
 `--quiet`, does not suppress diagnostics, and is not accepted by non-list commands.
+
+`grade --reset` requires `--yes` with quiet, JSON, or
+noninteractive input. Default `grade` uses current-state (no reset or startup);
+`--reset` selects clean-baseline and destroys only the immutable definition's
+declared grading target disks after a default-No confirmation. No declared targets
+means rejection, not full reset. `--yes` alone never requests reset. Stopped VMs
+must be started explicitly for current-state grading. Both AN modes run the
+learner playbook; LX/CT grading does not acquire Ansible semantics. Both modes
+refuse pending transactions and report the required explicit recovery command.
+See [grading](grading.md) for mode metadata and progress behavior.
 
 Primary results go to stdout; diagnostics and errors go to stderr. Quiet
 suppresses successful output only. JSON success is

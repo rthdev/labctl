@@ -74,7 +74,10 @@ class Application:
     def _terminal_confirm(prompt: str) -> bool:
         if not sys.stdin.isatty():
             return False
-        return input(f"{prompt} [y/N] ").strip().lower() in {"y", "yes"}
+        try:
+            return input(f"{prompt} [y/N] ").strip().lower() in {"y", "yes"}
+        except EOFError:
+            return False
 
     def _orchestrator(self, config: Config) -> KVMOrchestrator:
         return KVMOrchestrator(
@@ -419,17 +422,44 @@ class Application:
                     ExitStatus.PREREQUISITE,
                 )
             definition = load_definition(snapshot)
-            if definition.grading.reset_vms:
+            reset = getattr(args, "reset", False)
+            if reset and not definition.grading.reset_vms:
+                raise LabctlError("lab has no grading reset targets", ExitStatus.USAGE)
+            if reset and not getattr(args, "yes", False):
+                if (
+                    getattr(args, "json", False)
+                    or getattr(args, "quiet", False)
+                    or not sys.stdin.isatty()
+                ):
+                    raise LabctlError(
+                        "grade --reset requires --yes in noninteractive, JSON, or quiet mode",
+                        ExitStatus.USAGE,
+                    )
+                targets = ", ".join(f"{args.lab}/{name}" for name in definition.grading.reset_vms)
+                if not self.confirm(
+                    f"Reset {targets}? This will destroy all work on their disks; "
+                    "unselected VM disks (including the controller, if unselected) are preserved"
+                ):
+                    raise LabctlError("grading reset cancelled", ExitStatus.USAGE)
+            progress = getattr(args, "grade_progress", lambda _stage: None)
+            if reset:
+                progress("Resetting declared targets")
                 session.reset(
                     ImageStore(self.cache_root / "images"),
                     vm_names=definition.grading.reset_vms,
                 )
+                progress("Starting lab")
                 state = session.start()
             else:
                 state = self._state(args.lab)
             vms = self._vms(state)
             hosts: dict[str, dict[str, object]] = {}
             for name, vm in vms.items():
+                if vm.get("state") not in {"ready", "running"}:
+                    raise LabctlError(
+                        f"VM {name} is not running; use labctl lab start {args.lab} before grading",
+                        ExitStatus.PREREQUISITE,
+                    )
                 required = (
                     "hostname",
                     "address",
@@ -453,6 +483,7 @@ class Application:
                     "provider_uri": state["provider_uri"],
                     "lifecycle_state": vm["state"],
                 }
+            progress("Running grader")
             grade = run_grader(
                 [str(definition.grader)],
                 {
@@ -469,6 +500,10 @@ class Application:
             return CommandResult(
                 "grade",
                 {
+                    "mode": "clean-baseline" if reset else "current-state",
+                    "reset_vms": list(definition.grading.reset_vms) if reset else [],
+                    "reset_available": bool(definition.grading.reset_vms),
+                    "lab_id": args.lab,
                     "outcome": grade.outcome.value,
                     "exit_code": grade.exit_code,
                     "stdout": list(grade.stdout_lines),

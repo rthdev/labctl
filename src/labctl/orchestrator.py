@@ -621,13 +621,9 @@ class KVMOrchestrator:
     def grade_session(self, lab_id: str) -> Iterator[GradeSession]:
         """Hold the per-lab lifecycle lock until grading has fully completed."""
         with self._lab_lock(lab_id):
-            journal = self._load_journal(lab_id)
-            if journal is not None:
-                if journal.get("operation") != "reset":
-                    raise self._pending_transaction_error(lab_id, journal, "grading")
-                self._recover_reset(journal)
-                if self._load_journal(lab_id) is not None:
-                    raise self._pending_transaction_error(lab_id, journal, "grading")
+            # Recovery can replace disks/start guests, even before grade consent.
+            # Require the explicit lifecycle recovery command in either grade mode.
+            self._require_no_pending_transaction(lab_id, "grading")
             yield GradeSession(self, lab_id)
 
     @staticmethod

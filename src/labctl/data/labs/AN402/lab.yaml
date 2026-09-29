@@ -3,7 +3,7 @@ id: AN402
 title: Recover a multi-node service platform with Ansible
 goal: Recover a three-node web platform while preserving healthy nodes and reporting the result.
 instructions: |
-  On controller, repair the supplied project in /home/student/ansible-lab. Grading
+  On controller, repair the supplied project in /home/student/ansible-lab. Grading with --reset
   resets all managed nodes to deterministic starting faults, refreshes inventory,
   and runs site.yml twice. Recover web service, application configuration, firewall,
   enforcing SELinux policy, and backend health on every node. Preserve already

@@ -45,8 +45,9 @@ snapshot has the accepted digest, and executes only that snapshot.
 - Explicitly enable provider modules only after source and dependency review.
 
 Guest setup runs as root and can change the image. Graders should normally be
-read-only observers. A definition may explicitly reset selected disposable VMs
-before grading; AN001 then uses fixed commands and validated data to install only
+read-only observers. A definition may permit selected disposable VMs to be reset
+with explicit `grade --reset` consent. Default grading does not reset disks;
+both AN001 grading modes use fixed commands and validated data to install only
 a dedicated public key and execute the learner playbook from its preserved
 controller. The host management private key is never copied into a guest.
 AN001 grading is pedagogical outcome validation, not adversarial anti-cheat:

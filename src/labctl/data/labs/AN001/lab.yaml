@@ -7,7 +7,7 @@ instructions: |
   Target the web host; labctl supplies a fresh dynamic inventory during grading.
   The playbook must install nginx, enable and start it, and deploy
   /usr/share/nginx/html/index.html as root:root mode 0644 with the exact content
-  "Managed by Ansible". Run labctl grade AN001 when ready. Grading preserves the
+  "Managed by Ansible". Run labctl grade AN001 when ready. Grading with --reset preserves the
   controller and your site.yml, resets only target, then executes your playbook
   from controller against that clean target.
 provider: kvm

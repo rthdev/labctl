@@ -10,7 +10,7 @@ instructions: |
   content "Reusable Ansible role" followed by one newline. The complete playbook
   must report changed=0 on a second run. Grading accepts any playbook structure:
   it checks only the web outcomes and the second ansible-playbook recap after
-  resetting target and running from the persistent controller.
+  running from the persistent controller. Use --reset to reset target first.
 provider: kvm
 grader: grade.py
 grading:

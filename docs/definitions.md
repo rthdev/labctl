@@ -21,7 +21,7 @@ goal: Configure shared access.
 instructions: Complete the assignment on node.
 provider: kvm
 grader: grade.py
-# Optional and opt-in. Omit it to preserve every VM before grading.
+# Optional: permits selective reset only when grade --reset is requested.
 grading:
   reset_vms: [node]
 vms:
@@ -43,9 +43,10 @@ another VM in the same definition; dependencies determine startup order and
 reverse shutdown order. `ssh_user` is optional.
 
 `grading.reset_vms` is an optional, non-empty, duplicate-free list of VMs to
-transactionally reset immediately before the grader starts. Every entry must
-reference a VM in the same definition. Omitting `grading` preserves schema-v1
-behavior and performs no pre-grade reset; lab IDs and prefixes do not enable it.
+transactionally reset before the grader starts only with `grade --reset`. Every
+entry must reference a VM in the same definition. Default grading never resets
+VMs. Omitting `grading` makes `grade --reset` unavailable; lab IDs and prefixes
+do not enable it. Confirmation (or `--yes`) is also required for reset grading.
 Only selected domains, overlays, addresses, cleanup, rollback, recovery, and
 power state participate in the reset transaction. If a selective reset is
 interrupted, recovery retains the journaled selection: a later unqualified

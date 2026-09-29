@@ -3,6 +3,8 @@ id: AN101
 title: Render service configuration with a handler
 goal: Use variables and a template to configure chronyd, notifying a restart only when needed.
 instructions: |
+  ## Assignment
+
   On controller, work in /home/student/ansible-lab and complete site.yml. Target
   the managed host group from the grading inventory. Render /etc/chrony.conf with
   exactly these lines (and a final newline):
@@ -17,6 +19,62 @@ instructions: |
   variables, a template, and a notified handler so an unchanged second run does
   not restart chronyd. Grading runs the playbook twice (with --reset, it first resets target)
   from the persistent controller and checks the resulting service state and PID.
+
+  The second playbook recap must also report changed=0, unreachable=0, and failed=0.
+
+  ## Interactive practice from controller
+
+  You do not need to grade first to connect. From this controller, log in as
+  student to a managed VM using its SSH alias (exit to return to controller):
+
+  ```sh
+  ssh target
+  ```
+
+  To test your automation from controller:
+
+  ```sh
+  cd /home/student/ansible-lab
+  ansible all -i inventory.ini -m ping
+  ansible-playbook -i inventory.ini site.yml
+  ```
+
+  labctl manages inventory.ini and the practice SSH connection settings, using a
+  dedicated controller key and verified target host keys. Do not disable host-key
+  checking or copy a host-management private key into this VM. Keep custom
+  inventories in a separate file; labctl refreshes the managed connection files
+  after resets. Your playbook and supporting project files are not replaced by
+  connection refresh. A full lab reset still discards controller work.
+
+  Practice runs change the current targets. Default grading uses that current state
+  without resetting disks; it still executes your playbook using a separate temporary
+  inventory. Use --reset to prove it works from the lab's clean starting state.
+
+  ## Workflow and grading
+
+  Work on controller in /home/student/ansible-lab; the entry point is site.yml.
+  Inventory group(s): managed.
+
+  When ready, run this command on the host where labctl is installed, not inside
+  this controller VM:
+
+  ```sh
+  labctl grade AN101
+  # Optional destructive clean-baseline check:
+  labctl grade AN101 --reset
+  ```
+
+  Default current-state grading does not reset or start VMs. Start stopped labs
+  on the host with `labctl lab start AN101` first. Both modes execute your playbook.
+  The clean-baseline --reset mode names the target disks to destroy and asks [y/N]
+  (default No). Add --yes only to bypass confirmation; noninteractive, JSON, and
+  quiet reset runs require --yes. The controller and learner project are preserved.
+
+  With --reset, grading preserves controller and your project, resets only the managed VM(s)
+  (target), supplies a fresh dynamic inventory and SSH access, then runs
+  /home/student/ansible-lab/site.yml from controller and checks the resulting state.
+  Do not rely on manual changes surviving --reset or the playbook itself. The temporary
+  grading inventory is removed afterwards; you do not need to create it yourself.
 provider: kvm
 grader: grade.py
 grading:

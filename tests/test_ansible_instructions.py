@@ -15,7 +15,7 @@ DEFINITIONS = sorted(LABS.glob("AN*/lab.yaml"))
 
 
 @pytest.mark.parametrize("definition_path", DEFINITIONS, ids=lambda path: path.parent.name)
-def test_controller_setup_installs_and_preserves_instructions(
+def test_controller_setup_leaves_guide_publication_to_cloud_init(
     tmp_path: Path, definition_path: Path
 ) -> None:
     definition = load_definition(definition_path)
@@ -58,22 +58,27 @@ os.execv('/usr/bin/install', ['install', *clean])
             ["/bin/sh", str(script)], env=env, capture_output=True, text=True, check=False
         )
         assert result.returncode == 0, result.stderr
-        assert guide.is_file(), f"{definition.id} controller is missing LAB.md"
+        assert "LAB.md" not in controller.setup.read_text()
+        project = home / "ansible-lab"
+        assert (project / "site.yml").is_file()
+        assert f"student:student {project}" in (tmp_path / "chown.log").read_text()
         if iteration == 0:
-            text = guide.read_text()
-            assert f"# {definition.id}" in text
-            assert definition.instructions.strip().replace("/home/student", str(home)) in text
-            assert f"labctl grade {definition.id}" in text
-            assert f"labctl grade {definition.id} --reset" in text
-            assert "current-state" in text and "clean-baseline" in text
-            assert "--yes" in text and "[y/N]" in text
-            assert "on the host" in text
-            assert "ansible all -i inventory.ini -m ping" in text
-            assert "ansible-playbook -i inventory.ini site.yml" in text
-            for target in definition.grading.reset_vms:
-                assert f"ssh {target}" in text
-            assert guide.stat().st_mode & 0o777 == 0o644
-            assert f"student:student {guide}" in (tmp_path / "chown.log").read_text()
+            assert not guide.exists()
             guide.write_text("Learner notes: preserve me.\n")
         else:
             assert guide.read_text() == "Learner notes: preserve me.\n"
+
+
+@pytest.mark.parametrize("definition_path", DEFINITIONS, ids=lambda path: path.parent.name)
+def test_canonical_instructions_include_practice_and_host_grading(definition_path: Path) -> None:
+    definition = load_definition(definition_path)
+    text = definition.instructions
+    assert f"labctl grade {definition.id}" in text
+    assert f"labctl grade {definition.id} --reset" in text
+    assert "current-state" in text and "clean-baseline" in text
+    assert "--yes" in text and "[y/N]" in text
+    assert "on the host" in text
+    assert "ansible all -i inventory.ini -m ping" in text
+    assert "ansible-playbook -i inventory.ini site.yml" in text
+    for target in definition.grading.reset_vms:
+        assert f"ssh {target}" in text

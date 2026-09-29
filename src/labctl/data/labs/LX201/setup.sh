@@ -14,10 +14,3 @@ systemctl enable --now firewalld
 firewall-cmd --permanent --zone=public --remove-service=http >/dev/null 2>&1 || true
 firewall-cmd --permanent --zone=public --add-service=cockpit >/dev/null
 firewall-cmd --reload >/dev/null
-cat > /home/student/LAB.md <<'EOF'
-# LX201: Network and firewall operations
-Keep NetworkManager and the local web service working. Enable and start firewalld,
-permanently allow HTTP in the public zone, remove cockpit from that zone, reload
-the firewall, and verify `/network-health` still returns `LX201 reachable`.
-EOF
-chown student:student /home/student/LAB.md

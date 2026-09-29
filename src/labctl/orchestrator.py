@@ -24,6 +24,7 @@ from defusedxml import ElementTree as SafeElementTree
 from defusedxml.common import DefusedXmlException
 
 from labctl import controller_access
+from labctl.cloudinit import guest_instructions_file
 from labctl.definitions import (
     LAB_ID,
     VM_NAME,
@@ -728,9 +729,10 @@ class KVMOrchestrator:
         host_public: str,
         *,
         extra_bypass: tuple[str, ...] = (),
+        definition: LabDefinition | None = None,
     ) -> str:
         setup = vm.setup.read_text(encoding="utf-8")
-        document = {
+        document: dict[str, Any] = {
             "ssh_pwauth": False,
             "disable_root": True,
             "users": [
@@ -756,6 +758,10 @@ class KVMOrchestrator:
             ],
             "runcmd": [["/usr/local/sbin/labctl-setup"]],
         }
+        if definition is not None:
+            document["write_files"].append(
+                guest_instructions_file(definition, vm.ssh_user or "student")
+            )
         configure_proxy(document, extra_bypass=extra_bypass)
         return "#cloud-config\n" + yaml.safe_dump(document, sort_keys=False)
 
@@ -924,6 +930,7 @@ class KVMOrchestrator:
                         public.read_text(encoding="utf-8"),
                         host_private.read_text(encoding="utf-8"),
                         host_public.read_text(encoding="utf-8"),
+                        definition=definition,
                         extra_bypass=(
                             f"10.200.{16 + uuid.uuid5(uuid.NAMESPACE_OID, uid).int % 224}.0/24",
                             *(

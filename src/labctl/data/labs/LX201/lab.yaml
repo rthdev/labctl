@@ -4,9 +4,19 @@ title: Network and firewall operations
 goal: Repair a host firewall policy without interrupting managed networking or HTTP.
 instructions: |
   Work on node without changing its labctl-managed address or interface profile.
-  Enable firewalld and make the public-zone policy allow HTTP but not cockpit.
-  Reload the permanent policy and preserve NetworkManager plus the health endpoint.
-  Read /home/student/LAB.md before applying the repair.
+  Keep NetworkManager active and preserve the original connection UUID and IPv4
+  address. Keep the local web service working.
+
+  Enable and start firewalld. In the public zone, allow HTTP and remove cockpit
+  from both runtime and permanent policy. Reload the firewall successfully and
+  verify that HTTP remains allowed and cockpit remains closed after reload.
+  `http://127.0.0.1/network-health` must still return exactly `LX201 reachable`.
+  The grader reloads the permanent policy before checking runtime rules.
+
+  ## Grading
+
+  Run `labctl grade LX201` on the host where labctl is installed, not inside
+  the learner VM.
 provider: kvm
 grader: grade.py
 vms:

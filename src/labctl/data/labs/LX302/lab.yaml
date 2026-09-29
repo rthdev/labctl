@@ -3,11 +3,33 @@ id: LX302
 title: LVM expansion and recovery
 goal: Recover and expand an XFS logical volume using deterministic loop-backed media.
 instructions: |
-  Treat the two loop-backed image files as the lab storage devices.
-  Add the spare medium to vgdata and grow lvdata plus its XFS filesystem.
-  Reach at least 700 MiB while preserving the mounted filesystem and its data.
-  Order loop-PV attachment before local filesystems and LVM activation as described
-  in /home/student/LAB.md. Reboot and prove the exact LV mounts from fstab afterward.
+  Work on node. The two 512 MiB loop-backed images
+  `/var/lib/labctl-media/lx302-pv1.img` and
+  `/var/lib/labctl-media/lx302-pv2.img` are the lab disks. The first backs
+  `vgdata/lvdata`. Attach the second to a free loop device, add it as a PV to
+  `vgdata`, and extend `lvdata` to at least 700 MiB. Both supplied images must
+  back distinct PVs in the volume group. Grow the existing XFS filesystem too:
+  `df -m` must show at least 650 MiB of filesystem capacity. Preserve its data.
+
+  Configure durable loop attachment in an enabled, active
+  `lx302-loop-pvs.service`. The oneshot must use `DefaultDependencies=no`, run
+  before both `local-fs-pre.target` and `lvm2-monitor.service`, remain active
+  after completion, and use `WantedBy=sysinit.target`. Its `ExecStart=`
+  directives must invoke `losetup` for each supplied image and then `pvscan`.
+  Ensure `systemd-analyze verify lx302-loop-pvs.service` succeeds.
+
+  Add a valid `/etc/fstab` entry using `/dev/vgdata/lvdata` or
+  `/dev/mapper/vgdata-lvdata` as the source, `/srv/lvmdata` as the mount point,
+  and `xfs` as the filesystem type. `findmnt --verify --tab-file /etc/fstab`
+  must pass. Write exactly `LX302 recovered and expanded` to
+  `/srv/lvmdata/recovery.txt`. Reboot after the durable configuration; on that
+  new boot the exact LV must be mounted at `/srv/lvmdata` from fstab and the
+  loop attachment service must still be enabled and active.
+
+  ## Grading
+
+  Run `labctl grade LX302` on the host where labctl is installed, not inside
+  the learner VM.
 provider: kvm
 grader: grade.py
 vms:

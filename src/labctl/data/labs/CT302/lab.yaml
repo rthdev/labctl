@@ -3,8 +3,6 @@ id: CT302
 title: Harden and limit a rootless workload
 goal: Apply and verify effective identity, filesystem, privilege, process, memory, CPU, and SELinux controls.
 instructions: |
-  # CT302: Effective workload hardening
-
   Leave `ct302-secure` running from `docker.io/library/alpine:3.20` with:
   `--user 10001:10001`, `--read-only`, `--cap-drop ALL`,
   `--security-opt no-new-privileges`, `--memory 256m`, `--cpus 0.5`, and

@@ -13,10 +13,3 @@ systemctl disable --now httpd >/dev/null 2>&1 || true
 setenforce 1
 sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config
 semanage permissive -d httpd_t >/dev/null 2>&1 || true
-cat > /home/student/LAB.md <<'EOF'
-# LX301: Secure web service with SELinux
-Configure httpd to serve `/srv/secureweb` on TCP 8088. Add persistent SELinux
-port and file-context policy, apply it with restorecon, then enable/start httpd.
-Keep SELinux enforcing; disabling it or using a broad permissive workaround fails.
-EOF
-chown student:student /home/student/LAB.md

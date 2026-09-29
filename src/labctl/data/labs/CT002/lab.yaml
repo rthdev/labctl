@@ -3,8 +3,6 @@ id: CT002
 title: Manage container lifecycle and state
 goal: Practice start, stop, logs, and exec operations on a retained rootless container.
 instructions: |
-  # CT002: Lifecycle, logs, and exec
-
   Create `ct002-worker` from `docker.io/library/alpine:3.20`. Its initial command
   must be `sh -c "echo 'CT002 worker ready'; exec sleep infinity"`. Stop, inspect,
   and restart it. Leave it running. With `podman exec`, create `/lesson/status`

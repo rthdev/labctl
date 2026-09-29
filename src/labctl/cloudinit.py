@@ -5,13 +5,32 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 import yaml
 
+from .definitions import LabDefinition
 from .proxy import configure_proxy
 
 
-def generate_cloud_init(public_key: str, setup_commands: Sequence[str]) -> str:
+def guest_instructions_file(definition: LabDefinition, user: str = "student") -> dict[str, object]:
+    """Publish literal assignment Markdown after cloud-init creates the user/home."""
+    home = "/root" if user == "root" else f"/home/{user}"
+    return {
+        "path": f"{home}/LAB.md",
+        "owner": f"{user}:{user}",
+        "permissions": "0644",
+        "defer": True,
+        "content": f"# {definition.id}: {definition.title}\n\n{definition.instructions}",
+    }
+
+
+def generate_cloud_init(
+    public_key: str,
+    setup_commands: Sequence[str],
+    *,
+    definition: LabDefinition | None = None,
+) -> str:
     """Render cloud-init that permits key authentication and runs setup once."""
     if not public_key.startswith(("ssh-ed25519 ", "ssh-rsa ", "ecdsa-sha2-")):
         raise ValueError("unsupported SSH public key")
@@ -25,7 +44,7 @@ def generate_cloud_init(public_key: str, setup_commands: Sequence[str]) -> str:
         *setup_commands,
         "touch /var/lib/labctl/setup.done",
     ]
-    document = {
+    document: dict[str, Any] = {
         "ssh_pwauth": False,
         "disable_root": True,
         "users": [
@@ -45,6 +64,8 @@ def generate_cloud_init(public_key: str, setup_commands: Sequence[str]) -> str:
         ],
         "runcmd": [["/usr/local/sbin/labctl-setup"]],
     }
+    if definition is not None:
+        document["write_files"].append(guest_instructions_file(definition))
     configure_proxy(document)
     rendered: str = yaml.safe_dump(document, sort_keys=False)
     return "#cloud-config\n" + rendered

@@ -101,13 +101,14 @@ def test_nested_null_inspect_fields_never_crash(
 
 
 @pytest.mark.parametrize("lab_id", catalog.CT_IDS)
-def test_definition_and_guest_contracts_are_identical(lab_id: str) -> None:
+def test_definition_is_the_only_learner_contract(lab_id: str) -> None:
     from labctl.definitions import load_definition
 
     setup = (catalog.LABS / lab_id / "setup.sh").read_text()
-    contract = setup.split("/home/student/LAB.md <<'EOF'\n", 1)[1].split("\nEOF", 1)[0]
     definition = load_definition(catalog.LABS / lab_id / "lab.yaml")
-    assert definition.instructions.strip() == contract.strip()
+    assert "LAB.md" not in setup
+    assert "Common environment and boundaries" in definition.instructions
+    assert f"grade {lab_id}" in definition.instructions
 
 
 def module(lab_id: str) -> ModuleType:
@@ -243,7 +244,9 @@ def test_setup_mapping_and_user_manager_contract(lab_id: str) -> None:
 
 
 def test_quadlet_contract_explains_boot_dependency() -> None:
-    setup = (catalog.LABS / "CT401/setup.sh").read_text()
+    from labctl.definitions import load_definition
+
+    setup = load_definition(catalog.LABS / "CT401/lab.yaml").instructions
     for text in (
         "WantedBy=default.target",
         "Pull=never",

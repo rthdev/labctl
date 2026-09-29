@@ -3,10 +3,25 @@ id: LX102
 title: Persistent storage and mounts
 goal: Configure a durable XFS mount from deterministic loop-backed lab media.
 instructions: |
-  Use the prepared loop-backed lab medium; it represents the exercise disk.
-  Mount its XFS filesystem at /srv/archive and make the mount persistent in fstab.
-  Use loop,nofail options and ensure findmnt --verify reports no errors.
-  Create the required marker described in /home/student/LAB.md.
+  Work on node. The prepared 768 MiB loop-backed image at
+  `/var/lib/labctl-media/lx102-storage.img` is the exercise disk
+  (schema v1 has no extra-disk field). Mount its XFS filesystem at `/srv/archive`;
+  the mounted source must be the loop device attached to this exact image.
+
+  Add exactly this persistent entry to `/etc/fstab` (including its options and
+  field spacing):
+
+  ```fstab
+  /var/lib/labctl-media/lx102-storage.img /srv/archive xfs loop,nofail 0 0
+  ```
+
+  Ensure `findmnt --verify --tab-file /etc/fstab` reports no errors. Create
+  `/srv/archive/persistent.txt` containing exactly `LX102 persistent storage`.
+
+  ## Grading
+
+  Run `labctl grade LX102` on the host where labctl is installed, not inside
+  the learner VM.
 provider: kvm
 grader: grade.py
 vms:

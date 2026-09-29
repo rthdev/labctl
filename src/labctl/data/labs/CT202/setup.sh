@@ -33,25 +33,3 @@ loginctl enable-linger student
 uid=$(id -u student)
 systemctl start "user@$uid.service"; install -d -m 0700 -o student -g student "/run/user/$uid" /home/student/.config /home/student/.config/containers
 runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman image exists docker.io/library/alpine:3.20 || runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman pull docker.io/library/alpine:3.20
-if [ ! -e /home/student/LAB.md ]; then cat > /home/student/LAB.md <<'EOF'
-# CT202: Private container networking
-
-Create internal network `ct202-private`. Run `ct202-api` and `ct202-client` from
-the preloaded `docker.io/library/alpine:3.20`, both attached only to that network.
-Give the API alias `api`; serve exact body `CT202 private API` at `/health` on
-port 8080. Leave both running and prove the client can request `http://api:8080/health`.
-
-Nothing objective-related exists initially. Do not publish a host port, use host
-networking, edit `/etc/hosts`, use sudo/privileged Podman, or contact a registry.
-The upstream image tag is mutable; setup acquisition requires Internet.
-## Common environment and boundaries
-One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
-Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
-Use `--pull=never` for offline runs. Package/image acquisition during setup needs
-Internet; the upstream image tag is mutable, not digest-pinned. No host container
-engine is used. Keep SELinux confinement intact; never use privileged containers,
-rootful Podman, disabled labels, host networking, or host-service substitutes.
-No guest reboot is required for this lab. Leave all requested evidence in place.
-From the labctl host, run `labctl lab grade CT202` to check your work.
-EOF
-chown student:student /home/student/LAB.md; fi

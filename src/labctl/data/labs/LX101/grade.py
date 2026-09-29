@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -20,9 +21,12 @@ CHECKS = (
     ("health endpoint responds", "/usr/bin/curl -fsS http://127.0.0.1/health", "LX101 healthy"),
     (
         "journald persistence is effective",
-        "/usr/bin/sudo /usr/bin/bash -c 'systemd-analyze cat-config systemd/journald.conf | "
-        'awk -F= "/^[[:space:]]*Storage[[:space:]]*=/{value=\\$2} END {gsub(/[[:space:]]/, "", value); '
-        'if (value == "persistent") print value}"\'',
+        "/usr/bin/sudo /usr/bin/bash -o pipefail -c "
+        + shlex.quote(
+            "systemd-analyze cat-config systemd/journald.conf | "
+            "awk -F= '/^[[:space:]]*Storage[[:space:]]*=/{value=$2} "
+            'END {gsub(/[[:space:]]/, "", value); if (value == "persistent") print value}\''
+        ),
         "persistent",
     ),
     (

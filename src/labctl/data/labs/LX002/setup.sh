@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
-install -d -m 0755 -o student -g student /srv/lx002/source /srv/lx002/archive
+# Leave archive creation to the learner; its parent must be writable.
+install -d -m 0755 -o student -g student /srv/lx002 /srv/lx002/source
 cat > /srv/lx002/source/records.txt <<'EOF'
 INFO api ready
 WARN cache cold

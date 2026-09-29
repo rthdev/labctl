@@ -4,6 +4,7 @@ title: Files, links, and text processing
 goal: Organize files and prove link semantics while producing a deterministic text report.
 instructions: |
   Work on node with the staged records in `/srv/lx002/source/records.txt`.
+  The parent `/srv/lx002` is student-owned; the archive directory is not staged.
   Create `/srv/lx002/archive` and `/srv/lx002/archive/records.hard` as a hard
   link to that source file: the files must share the same inode. Create
   `/home/student/current-records` as a symbolic link resolving to the source file.

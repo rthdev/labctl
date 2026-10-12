@@ -87,7 +87,7 @@ not this storage tree. Do not use `chmod 777` or run QEMU as your login.
 Clone this project and install it into an isolated pipx environment:
 
 ```sh
-git clone --branch develop https://github.com/rthdev/labctl.git
+git clone --branch main https://github.com/rthdev/labctl.git
 cd labctl
 pipx install "$PWD"
 pipx ensurepath

@@ -264,7 +264,16 @@ def test_application_lists_catalog_and_state(tmp_path: Path) -> None:
             "id": "demo",
             "title": "",
             "provider": "kvm",
-            "state": "running",
+            "state": "unknown",
+            "recorded_state": "running",
+            "observation": {
+                "state": "unknown",
+                "diagnostics": [
+                    "No recorded VM identities; inspect lifecycle state or pending transaction."
+                ],
+            },
+            "cleanup_failures": [],
+            "pending_operation": None,
             "uri": "qemu:///session",
         }
     ]

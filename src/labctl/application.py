@@ -24,6 +24,7 @@ from labctl.kvm import KVMProvider
 from labctl.orchestrator import KVMOrchestrator, OrchestrationError, OrchestrationNotFoundError
 from labctl.paths import XDGPaths
 from labctl.provider import Provider, discover_providers
+from labctl.runtime import observe_states, status_diagnostics, status_records
 from labctl.ssh import build_ssh_command
 from labctl.state import StateError, load_state
 from labctl.trust import TrustStore
@@ -240,7 +241,22 @@ class Application:
 
     def _lab_ls(self, args: argparse.Namespace, config: Config) -> CommandResult:
         definitions = self._definitions(config)
-        states = self._states()
+        states = status_records(self.state_root)
+        selected = {
+            lab_id: state
+            for lab_id, state in states.items()
+            if not args.available
+            and (
+                not args.provider
+                or state.get(
+                    "provider",
+                    definitions[lab_id].provider if lab_id in definitions else config.provider,
+                )
+                == args.provider
+            )
+        }
+        observed = observe_states(selected)
+        states.update(observed)
         rows: list[dict[str, object]] = []
         for lab_id in sorted(definitions.keys() | states.keys()):
             state = states.get(lab_id)
@@ -270,18 +286,58 @@ class Application:
                         else ""
                     ),
                     "state": status,
+                    "recorded_state": state["recorded_state"] if state else None,
+                    "observation": state["observation"]
+                    if state
+                    else {"state": "available", "diagnostics": []},
+                    "cleanup_failures": state.get("cleanup_failures", []) if state else [],
+                    "pending_operation": state.get("pending_operation") if state else None,
                     "provider": provider,
                     "uri": state.get("provider_uri", "") if state else "",
                 }
             )
-        return CommandResult("labs", rows, ("id", "title", "state", "provider", "uri"))
+        return CommandResult(
+            "labs",
+            rows,
+            ("id", "title", "state", "provider", "uri"),
+            diagnostics=status_diagnostics(observed),
+        )
 
     def _lab_inspect(self, args: argparse.Namespace, config: Config) -> CommandResult:
-        state = self._states().get(args.lab)
-        definition = self._definitions(config).get(args.lab)
+        state = status_records(self.state_root, args.lab).get(args.lab)
+        if state is not None:
+            state = observe_states({args.lab: state})[args.lab]
+        definition = None
+        definition_diagnostic = None
+        if state is not None:
+            snapshot = self._instance_path(args.lab) / "definition"
+            try:
+                if snapshot.is_symlink() or (snapshot / "lab.yaml").is_symlink():
+                    raise ValueError("symlink snapshot")
+                expected_digest = state.get("definition_digest")
+                if expected_digest and directory_digest(snapshot) != expected_digest:
+                    raise ValueError("altered snapshot")
+                definition = load_definition(snapshot / "lab.yaml")
+                if definition.id != args.lab:
+                    raise ValueError("snapshot identity mismatch")
+            except (OSError, ValueError):
+                definition = None
+                definition_diagnostic = (
+                    f"{args.lab}: assignment unavailable: saved definition is missing or invalid; "
+                    "the current catalogue is not a substitute."
+                )
+        else:
+            definition = self._definitions(config).get(args.lab)
         if state is None and definition is None:
             raise LabctlError(f"lab not found: {args.lab}", ExitStatus.NOT_FOUND)
-        data: dict[str, object] = dict(state or {})
+        data: dict[str, object] = dict(
+            state
+            or {
+                "state": "available",
+                "recorded_state": None,
+                "observation": {"state": "available", "diagnostics": []},
+            }
+        )
         if definition:
             data.update(
                 title=definition.title,
@@ -289,7 +345,17 @@ class Application:
                 instructions=definition.instructions,
                 definition=str(definition.source),
             )
-        return CommandResult("lab", data)
+        data["id"] = args.lab
+        diagnostics = status_diagnostics({args.lab: state}) if state else ()
+        if definition_diagnostic:
+            data.update(
+                title=None,
+                goal=None,
+                instructions=None,
+                definition_diagnostic=definition_diagnostic,
+            )
+            diagnostics += (definition_diagnostic,)
+        return CommandResult("lab", data, diagnostics=diagnostics)
 
     def _lab_create(self, args: argparse.Namespace, config: Config) -> CommandResult:
         try:
@@ -409,6 +475,11 @@ class Application:
         orchestrator = self._orchestrator(config)
         with orchestrator.grade_session(args.lab) as session:
             drift = session.reconcile(repair=False)
+            if drift and all(item["action"] == "mark-stopped" for item in drift):
+                raise LabctlError(
+                    f"lab is not running; use labctl lab start {args.lab} before grading",
+                    ExitStatus.PREREQUISITE,
+                )
             if drift:
                 details = "; ".join(f"{item['resource']}: {item['reason']}" for item in drift)
                 raise LabctlError(
@@ -531,21 +602,50 @@ class Application:
         return vms
 
     def _vm_ls(self, args: argparse.Namespace, _config: Config) -> CommandResult:
-        states = {args.lab_id: self._state(args.lab_id)} if args.lab_id else self._states()
+        states = status_records(self.state_root, args.lab_id)
+        if args.lab_id and not states:
+            raise LabctlError(f"lab not found: {args.lab_id}", ExitStatus.NOT_FOUND)
+        states = observe_states(states)
         rows: list[dict[str, object]] = []
         for lab_id, state in states.items():
             for name, vm in sorted(self._vms(state).items()):
-                status = str(vm.get("state", "unknown"))
-                rows.append({"lab": lab_id, "name": name, "state": status})
-        return CommandResult("vms", rows, ("lab", "name", "state"))
+                rows.append(
+                    {
+                        "lab": lab_id,
+                        "name": name,
+                        "state": vm["state"],
+                        "recorded_state": vm["recorded_state"],
+                        "recorded_lab_state": state["recorded_state"],
+                        "cleanup_failures": state.get("cleanup_failures", []),
+                        "pending_operation": state.get("pending_operation"),
+                        "observation": vm["observation"],
+                    }
+                )
+        return CommandResult(
+            "vms", rows, ("lab", "name", "state"), diagnostics=status_diagnostics(states)
+        )
 
     def _vm_inspect(self, args: argparse.Namespace, _config: Config) -> CommandResult:
         lab_id, vm_name = args.lab_id, args.vm_name
         try:
-            vm = self._vms(self._state(lab_id))[vm_name]
+            state = status_records(self.state_root, lab_id)[lab_id]
+            state["vms"] = {vm_name: self._vms(state)[vm_name]}
+            state = observe_states({lab_id: state})[lab_id]
+            vm = self._vms(state)[vm_name]
         except KeyError as exc:
             raise LabctlError(f"VM not found: {lab_id}/{vm_name}", ExitStatus.NOT_FOUND) from exc
-        return CommandResult("vm", {"lab": lab_id, "name": vm_name, **vm})
+        return CommandResult(
+            "vm",
+            {
+                "lab": lab_id,
+                "name": vm_name,
+                **vm,
+                "pending_operation": state.get("pending_operation"),
+                "recorded_lab_state": state["recorded_state"],
+                "cleanup_failures": state.get("cleanup_failures", []),
+            },
+            diagnostics=status_diagnostics({lab_id: state}),
+        )
 
     def _connection(self, lab_id: str, vm_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
         state = self._state(lab_id)

@@ -211,6 +211,7 @@ def provision(tmp_path, *, enabled=True, fail_remote=False):
             self.addresses = {}
             self.remote = []
             self.fail_remote = False
+            self.network_active = False
 
         def run(self, argv, *, check=True):
             if "ssh" in argv:
@@ -238,6 +239,13 @@ def provision(tmp_path, *, enabled=True, fail_remote=False):
             command_argv = argv[3:] if argv[:2] == ["timeout", "--signal=KILL"] else argv
             if command_argv[0] == "virsh":
                 op, domain = command_argv[3:5]
+                if op == "net-start":
+                    self.network_active = True
+                if op == "net-dumpxml":
+                    xml = (tmp_path / "data/instances/AN999/network.xml").read_text()
+                    return CommandResult(tuple(argv), 0, xml, "")
+                if op == "net-info" and self.network_active:
+                    return CommandResult(tuple(argv), 0, "Active: yes\nPersistent: yes\n", "")
                 if op in ("shutdown", "destroy"):
                     self.power[domain] = "shut off"
                 if op == "start":

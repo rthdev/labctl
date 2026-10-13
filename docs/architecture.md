@@ -52,7 +52,22 @@ identity, but a name is not proof of ownership. Missing resources may be
 created; present, correctly owned resources are retained; mismatched metadata
 is a conflict and must never be deleted as though owned.
 
-## Transitions
+## Runtime observation
+
+`runtime.py` provides bounded read-only status snapshots independently of
+`KVMOrchestrator` and its material reconciliation. Listings and inspection never
+invoke lifecycle recovery, disk probes, or readiness checks. Observation checks
+the recorded provider/URI, deterministic domain identity, and namespace-strict
+ownership metadata before reporting a present VM's power. Provider API v1 has no
+external runtime-observation contract; unsupported providers report unknown and
+are not substituted with KVM or imported just to list status.
+
+Observed `state` and historical `recorded_state` coexist in command results, not
+in persisted state. Pending transaction summaries and recorded failures remain
+separate from the runtime aggregate. Even schema-v0 status reads convert only
+in memory, without creating migration backups. See [CLI status semantics](cli.md#live-status-versus-recorded-lifecycle).
+
+## Recorded lifecycle transitions
 
 Self-transitions are no-ops. Other allowed transitions are:
 

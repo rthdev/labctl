@@ -42,8 +42,9 @@ labctl provider inspect NAME
 labctl provider doctor [NAME]
 ```
 
-`--available` means definitions without state; `--active` means every recorded
-instance. `lab reset` prompts on a terminal and requires `--force` non-interactively.
+`--available` means definitions without state or a pending transaction; `--active`
+means every recorded instance or pending transaction, not just running guests.
+`lab reset` prompts on a terminal and requires `--force` non-interactively.
 Removal needs force only while running. Stop always tries graceful shutdown;
 force permits destroy after timeout. Reconcile is dry-run by default; repair
 changes state only and never creates, deletes, adopts, or rebinds a resource.
@@ -57,6 +58,57 @@ All list commands accept `--noheading` after the command (for example,
 human-readable table's header row; data rows retain their normal alignment.
 Empty lists still print nothing. The option has no effect with `--json` or
 `--quiet`, does not suppress diagnostics, and is not accepted by non-list commands.
+
+## Live status versus recorded lifecycle
+
+Lab/VM lists (including all aliases) and inspection observe runtime state by
+default. **The `STATE` column and JSON `state` now describe observed power, not
+the last saved lifecycle result.** A saved `ready` after a host reboot can therefore
+display `stopped`; a running domain is **not** proof of SSH, cloud-init, setup,
+controller access, or grading readiness.
+
+- VM states: `running`, `stopped`, `paused`, `missing`, `unknown`. Libvirt's
+  distinct `blocked`, `shutdown` (shutting down), `crashed`, and `pmsuspended`
+  states are retained rather than incorrectly reported as running or stopped.
+- Lab states: `running` if every recorded VM is running; `stopped` if all are
+  stopped; `partial` for a running/stopped mixture; `degraded` for missing,
+  paused, or other exceptional power states. Any unknown VM makes the aggregate
+  `unknown`, as does a saved instance without VM identities. These aggregates
+  do not replace recorded provisioning or cleanup failures.
+- `available` means an uncreated definition, with no saved instance or journal.
+
+JSON envelopes remain v1. List rows and inspection add `recorded_state` and
+`observation` (`state`, `diagnostics`, plus the numeric libvirt `provider_state`
+string for observed VMs, or null if unavailable). Verbose/debug and JSON lab
+inspection retain all saved fields, including failure details, and add the same separation to each
+nested VM. VM rows/inspection also expose `recorded_lab_state` and
+`cleanup_failures`. `pending_operation` is an allowlisted journal summary with
+operation, phase, and any recorded valid selective-reset VM selection; it never
+includes keys, execution arguments, or the full journal. No saved instance gives
+`recorded_state: null`. Recorded controller-access status is historical, not a
+live readiness assertion.
+
+The snapshot uses only the recorded provider URI; changing `--uri` or current
+configuration does not move an existing instance. KVM queries use read-only
+libvirt access, one batched power query per URI and an ownership XML read per
+present selected VM. Domain names and all ownership markers must match. There
+are no disk/backing-chain probes, reconciliation, guest SSH/readiness checks,
+startup, state migration/writes, or journal recovery. Queries are bounded to
+3 seconds each and a shared 10-second observation budget; timed-out queries
+and their transport helpers are terminated. Filters are applied before querying.
+Snapshots are best-effort, not atomic across VMs or concurrent lifecycle changes.
+
+An unavailable or unauthorized provider, invalid ownership, timeout, malformed
+response, missing recorded identity, or unsupported external provider yields
+`unknown` with a diagnostic, never cached `ready` or assumed absence. Only a
+successful provider inventory can establish `missing`. Check the recorded URI,
+libvirt service and read authorization before explicit recovery. Human diagnostics
+go to stderr without widening tables; JSON carries observation diagnostics in
+data. Listing still exits successfully when it can report unknown status: scripts
+must check `observation.state`, not just the exit code. No offline/cache switch
+is needed to obtain saved lifecycle details: use `recorded_state`.
+
+## Grading and output
 
 `grade --reset` requires `--yes` with quiet, JSON, or
 noninteractive input. Default `grade` uses current-state (no reset or startup);
@@ -89,10 +141,24 @@ they run, plus the complete resulting state on stdout. Debug output never
 includes captured command output. JSON and quiet modes remain machine-stable and
 do not emit debug traces.
 
-Successful `vm start ID VM` and `vm stop ID VM` print only a concise
-`VM ID/VM started.` or `VM ID/VM stopped.` confirmation by default. Use
-`-v`/`--verbose` or `--debug` for the complete resulting state. JSON retains
-its full structured result, and quiet mode suppresses successful output.
+Successful `lab start ID` and `lab stop ID` print `Lab ID started.` and
+`Lab ID stopped.` by default. `vm start ID VM` and `vm stop ID VM` use the
+matching `VM ID/VM started.` and `VM ID/VM stopped.` confirmations. Like create,
+`-v`/`--verbose` or `--debug` prints the complete resulting state; JSON retains
+its full structured result. Warnings still go to stderr, and failures never
+print a success confirmation. Quiet suppresses successful results and warnings,
+not errors. Redirected output is deterministic and uncolored.
+
+`lab inspect ID` shows only `id`, live `state`, `title`, `goal`, and the full
+multiline canonical `instructions` by default. For an existing instance, learner
+metadata comes from its saved definition snapshot, not an updated catalogue;
+the recorded digest is checked when present. For an uncreated lab it comes from
+the current definition. A missing, invalid, or altered snapshot leaves learner
+metadata explicitly unavailable with a warning rather than substituting a
+different assignment. JSON carries this as `definition_diagnostic` with null
+learner metadata. `-v`/`--verbose`, `--debug`, and JSON retain the detailed state,
+including recorded failures, pending operations, and observation metadata.
+Live-status and lifecycle warnings remain on stderr in ordinary human mode.
 
 Exit statuses: 0 success, 2 usage/validation, 3 not found, 4 conflict/lock, 5
 missing prerequisite, 6 operation failure, and 7 grading failure. Interactive

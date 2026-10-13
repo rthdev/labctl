@@ -1,6 +1,6 @@
 # labctl
 
-`labctl` 0.4.1 is a typed Python 3.12+ CLI for reproducible Linux learning labs
+`labctl` 0.4.2 is a typed Python 3.12+ CLI for reproducible Linux learning labs
 on local KVM/libvirt. It validates and snapshots definitions, maintains verified
 content-addressed images, creates isolated networks and QCOW2 overlays,
 provisions with cloud-init, pins SSH host keys, manages lifecycle and drift, and
@@ -89,6 +89,12 @@ labctl image list
 The top-level `labs`, `vms`, `images`, and `providers` commands are shortcuts for
 `lab ls`, `vm ls`, `image ls`, and `provider ls`, with identical options and output.
 
+Lab/VM lists and inspection show live runtime power by default, including after a
+host reboot. `running` does not mean ready. JSON/inspection keep the historical
+`recorded_state` separate from `observation` and preserve pending/failure details;
+provider failures show `unknown`, never cached `ready`. See
+[status semantics and read-only query limits](docs/cli.md#live-status-versus-recorded-lifecycle).
+
 Pull the pinned, provenance-verified image used by the bundled labs, then create
 the lab:
 
@@ -102,6 +108,56 @@ labctl lab reset LX001
 labctl lab stop LX001
 labctl lab rm LX001
 ```
+
+### After a host reboot
+
+Lab definitions, disks and learner changes persist. New managed lab networks
+have libvirt **network autostart enabled**, so libvirt starts them when its network
+service starts after a host reboot. labctl does **not** enable VM autostart; resume
+guests explicitly after libvirt is available:
+
+```console
+labctl lab start LX001
+# Or start just a selected VM and its dependencies:
+labctl vm start LX001 node
+```
+
+Use the VM name from `labctl vm list LX001` rather than assuming `node` for every
+lab. `lab start` starts every VM; `vm start` leaves unrelated stopped peers off.
+Start validates ownership and configuration of both the live and persistent lab
+network, enables its autostart (including for labs created by older versions),
+and starts it immediately if inactive. Autostart alone only covers future host
+boots. Start keeps disks and seed media, waits for guest readiness and refreshes
+addresses; it never redefines a missing network or enables guest autostart.
+If guest startup fails, the owned network and its autostart setting may remain
+for a safe retry; the network is not destroyed beneath other guests. Removing
+the lab undefines its network, which also removes that network's autostart.
+
+A previously running VM observed powered off is a recoverable `mark-stopped`
+reconciliation action, not an ownership/configuration violation.
+`labctl lab reconcile LX001 --repair` updates saved power state only; it starts
+neither guests nor networks and never changes autostart. Start does not require
+that repair step. Grading an offline lab directs you to `lab start` rather than
+treating shutdown alone as material drift. Ownership, configuration, disk and
+pending-transaction failures still require investigation;
+`--force` is not a drift or journal bypass.
+
+**Known limitation:** after a host reboot, a stopped overlay can remain owned by
+QEMU and unreadable to the operator. Offline grading/reconciliation currently
+misreports that permission failure as `disk backing drift`, even when the backing
+path is correct, instead of giving only the start guidance above. Explicit start
+was verified separately; this diagnostic defect remains unresolved. Do not
+change disk permissions or bypass validation to suppress it.
+
+`labctl lab rm LX001` can remove an offline lab without starting it or using
+`--force`. Running guests still require stopping first or explicit `rm --force`.
+`restart` restarts only guests already running, so use `start` to resume after a
+reboot. `reset` is destructive (it discards learner changes), not a reboot
+recovery command; an explicitly requested reset also validates the lab network,
+enables network autostart and starts it if inactive.
+
+Use `labctl provider doctor` if libvirt or host prerequisites are unavailable.
+Do not delete state/journals or remove ownership markers to work around an error.
 
 Use `labctl image import` with an independently trusted digest when supplying a
 custom or alternate image; see [docs/images.md](docs/images.md).

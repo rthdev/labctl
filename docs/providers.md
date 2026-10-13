@@ -11,6 +11,13 @@ Provider discovery and doctor remain extensible, but this release implements
 lifecycle orchestration only for the built-in `kvm` provider; a discovered
 non-KVM provider fails before images or resources are changed.
 
+Provider API v1 does not define bounded runtime observation. Lab/VM status
+therefore reports `unknown` with a diagnostic for external providers (or absent
+recorded provider identity), without calling their doctor/reconcile methods,
+importing plugins, or falling back to built-in KVM. Built-in status reads use the
+instance's recorded URI, not current provider discovery/configuration. This
+does not change the provider API version or lifecycle interface.
+
 A module exports `PROVIDER_API_VERSION = 1` and one `PROVIDER` instance. Files in
 `$XDG_DATA_HOME/labctl/providers/NAME.py` and configured `provider_paths` are
 discovery candidates, but placement never imports them. Add `NAME` to

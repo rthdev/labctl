@@ -109,7 +109,7 @@ def save_state(path: Path, data: dict[str, Any]) -> None:
     save_json(path, data)
 
 
-def load_state(path: Path) -> dict[str, Any]:
+def load_state(path: Path, *, migrate: bool = True) -> dict[str, Any]:
     try:
         data: Any = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -120,6 +120,10 @@ def load_state(path: Path) -> dict[str, Any]:
     if isinstance(version, int) and version > 1:
         raise StateError(f"future state schema version {version} is not supported")
     if version == 0:
+        if not migrate:
+            return _validate(
+                {"schema_version": 1, "id": data.get("lab_id"), "provider_uri": data.get("uri")}
+            )
         backup = path.with_suffix(path.suffix + ".v0.bak")
         if backup.exists():
             raise StateError(f"migration backup already exists: {backup}")

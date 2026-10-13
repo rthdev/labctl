@@ -89,6 +89,12 @@ labctl image list
 The top-level `labs`, `vms`, `images`, and `providers` commands are shortcuts for
 `lab ls`, `vm ls`, `image ls`, and `provider ls`, with identical options and output.
 
+Lab/VM lists and inspection show live runtime power by default, including after a
+host reboot. `running` does not mean ready. JSON/inspection keep the historical
+`recorded_state` separate from `observation` and preserve pending/failure details;
+provider failures show `unknown`, never cached `ready`. See
+[status semantics and read-only query limits](docs/cli.md#live-status-versus-recorded-lifecycle).
+
 Pull the pinned, provenance-verified image used by the bundled labs, then create
 the lab:
 

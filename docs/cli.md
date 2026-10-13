@@ -79,8 +79,8 @@ controller access, or grading readiness.
 
 JSON envelopes remain v1. List rows and inspection add `recorded_state` and
 `observation` (`state`, `diagnostics`, plus the numeric libvirt `provider_state`
-string for observed VMs, or null if unavailable). Lab inspection retains all
-saved fields, including failure details, and adds the same separation to each
+string for observed VMs, or null if unavailable). Verbose/debug and JSON lab
+inspection retain all saved fields, including failure details, and add the same separation to each
 nested VM. VM rows/inspection also expose `recorded_lab_state` and
 `cleanup_failures`. `pending_operation` is an allowlisted journal summary with
 operation, phase, and any recorded valid selective-reset VM selection; it never
@@ -141,10 +141,24 @@ they run, plus the complete resulting state on stdout. Debug output never
 includes captured command output. JSON and quiet modes remain machine-stable and
 do not emit debug traces.
 
-Successful `vm start ID VM` and `vm stop ID VM` print only a concise
-`VM ID/VM started.` or `VM ID/VM stopped.` confirmation by default. Use
-`-v`/`--verbose` or `--debug` for the complete resulting state. JSON retains
-its full structured result, and quiet mode suppresses successful output.
+Successful `lab start ID` and `lab stop ID` print `Lab ID started.` and
+`Lab ID stopped.` by default. `vm start ID VM` and `vm stop ID VM` use the
+matching `VM ID/VM started.` and `VM ID/VM stopped.` confirmations. Like create,
+`-v`/`--verbose` or `--debug` prints the complete resulting state; JSON retains
+its full structured result. Warnings still go to stderr, and failures never
+print a success confirmation. Quiet suppresses successful results and warnings,
+not errors. Redirected output is deterministic and uncolored.
+
+`lab inspect ID` shows only `id`, live `state`, `title`, `goal`, and the full
+multiline canonical `instructions` by default. For an existing instance, learner
+metadata comes from its saved definition snapshot, not an updated catalogue;
+the recorded digest is checked when present. For an uncreated lab it comes from
+the current definition. A missing, invalid, or altered snapshot leaves learner
+metadata explicitly unavailable with a warning rather than substituting a
+different assignment. JSON carries this as `definition_diagnostic` with null
+learner metadata. `-v`/`--verbose`, `--debug`, and JSON retain the detailed state,
+including recorded failures, pending operations, and observation metadata.
+Live-status and lifecycle warnings remain on stderr in ordinary human mode.
 
 Exit statuses: 0 success, 2 usage/validation, 3 not found, 4 conflict/lock, 5
 missing prerequisite, 6 operation failure, and 7 grading failure. Interactive

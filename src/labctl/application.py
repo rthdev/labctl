@@ -307,7 +307,27 @@ class Application:
         state = status_records(self.state_root, args.lab).get(args.lab)
         if state is not None:
             state = observe_states({args.lab: state})[args.lab]
-        definition = self._definitions(config).get(args.lab)
+        definition = None
+        definition_diagnostic = None
+        if state is not None:
+            snapshot = self._instance_path(args.lab) / "definition"
+            try:
+                if snapshot.is_symlink() or (snapshot / "lab.yaml").is_symlink():
+                    raise ValueError("symlink snapshot")
+                expected_digest = state.get("definition_digest")
+                if expected_digest and directory_digest(snapshot) != expected_digest:
+                    raise ValueError("altered snapshot")
+                definition = load_definition(snapshot / "lab.yaml")
+                if definition.id != args.lab:
+                    raise ValueError("snapshot identity mismatch")
+            except (OSError, ValueError):
+                definition = None
+                definition_diagnostic = (
+                    f"{args.lab}: assignment unavailable: saved definition is missing or invalid; "
+                    "the current catalogue is not a substitute."
+                )
+        else:
+            definition = self._definitions(config).get(args.lab)
         if state is None and definition is None:
             raise LabctlError(f"lab not found: {args.lab}", ExitStatus.NOT_FOUND)
         data: dict[str, object] = dict(
@@ -325,9 +345,17 @@ class Application:
                 instructions=definition.instructions,
                 definition=str(definition.source),
             )
-        return CommandResult(
-            "lab", data, diagnostics=status_diagnostics({args.lab: state}) if state else ()
-        )
+        data["id"] = args.lab
+        diagnostics = status_diagnostics({args.lab: state}) if state else ()
+        if definition_diagnostic:
+            data.update(
+                title=None,
+                goal=None,
+                instructions=None,
+                definition_diagnostic=definition_diagnostic,
+            )
+            diagnostics += (definition_diagnostic,)
+        return CommandResult("lab", data, diagnostics=diagnostics)
 
     def _lab_create(self, args: argparse.Namespace, config: Config) -> CommandResult:
         try:

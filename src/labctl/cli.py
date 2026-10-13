@@ -517,7 +517,7 @@ def main(
             args.download_progress = progress
             args.grade_progress = grade_progress
             result = (application or Application()).execute(args)
-        if not args.json:
+        if not args.json and not args.quiet:
             for diagnostic in result.diagnostics:
                 print(diagnostic, file=errors)
         if result.status:
@@ -551,13 +551,32 @@ def main(
                 rendered = f"Lab {lab_id} created."
             elif (
                 not result.status
-                and args.group == "vm"
+                and args.group in {"lab", "vm"}
                 and args.command in {"start", "stop"}
                 and not args.verbose
                 and not args.debug
             ):
                 verb = "started" if args.command == "start" else "stopped"
-                rendered = f"VM {args.lab_id}/{args.vm_name} {verb}."
+                identity = (
+                    f"Lab {args.lab}" if args.group == "lab" else f"VM {args.lab_id}/{args.vm_name}"
+                )
+                rendered = f"{identity} {verb}."
+            elif (
+                not result.status
+                and args.group == "lab"
+                and args.command == "inspect"
+                and not args.verbose
+                and not args.debug
+                and isinstance(result.data, dict)
+            ):
+                data = result.data
+                rendered = "\n".join(
+                    f"{key}: {data.get(key) or 'unavailable'}"
+                    for key in ("id", "state", "title", "goal")
+                )
+                rendered += "\ninstructions:\n" + str(
+                    data.get("instructions") or "unavailable"
+                ).rstrip("\n")
             else:
                 rendered = _human(
                     result,

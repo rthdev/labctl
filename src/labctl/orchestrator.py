@@ -882,6 +882,7 @@ class KVMOrchestrator:
                 ("network", network, partial(self._virsh, uri, "net-undefine", network))
             )
             self._verify_network(uri, network, uid)
+            self._virsh(uri, "net-autostart", network)
             logger.debug("starting libvirt network %s", network)
             self._virsh(uri, "net-start", network)
             rollback.append(("operation", None, partial(self._virsh, uri, "net-destroy", network)))
@@ -1624,6 +1625,30 @@ class KVMOrchestrator:
                     return observed == "yes"
         raise OrchestrationError(f"network activity is indeterminate: {network}")
 
+    def _ensure_network_active(self, state: dict[str, Any]) -> None:
+        """Resume only the existing owned, unchanged persistent network."""
+        uri = str(state["provider_uri"])
+        network = str(state["network"])
+        uid = self._uid(state)
+        self._verify_network(uri, network, uid)
+        active = self._network_active(uri, network)
+        expected = self._network_material(self._network_xml(network, uid))
+        # Autostart uses the persistent definition, which can differ from an
+        # already-running network. Validate both before changing boot policy.
+        for options in ((), ("--inactive",)):
+            observed = self._virsh(uri, "net-dumpxml", network, *options)
+            if self._parse_ownership(observed, network=True) != self._ownership(uid, "network"):
+                raise OrchestrationError(f"ownership verification failed for network {network}")
+            if self._network_material(observed) != expected:
+                raise OrchestrationError(f"network configuration drift: {network}")
+        self._verify_network(uri, network, uid)
+        self._virsh(uri, "net-autostart", network)
+        if active:
+            return
+        self._virsh(uri, "net-start", network)
+        if not self._network_active(uri, network):
+            raise OrchestrationError(f"network remains inactive: {network}")
+
     def _observe_power(self, uri: str, state: dict[str, Any], order: list[str]) -> dict[str, bool]:
         uid = self._uid(state)
         vms: dict[str, dict[str, Any]] = state["vms"]
@@ -1759,7 +1784,14 @@ class KVMOrchestrator:
         vms: dict[str, dict[str, Any]] = state["vms"]
         order = self._start_order(vms, list(state.get("vm_order", vms)), vm_name)
         self._controller_access_definition(state)
-        before = self._observe_power(uri, state, order)
+        observed = self._observe_power(uri, state, list(state.get("vm_order", vms)))
+        before = {name: observed[name] for name in order}
+        self._ensure_network_active(state)
+        # Refresh offline peers without starting them or treating stale saved
+        # readiness as a live controller-access topology.
+        for name, active in observed.items():
+            if not active and vms[name].get("state") in {"ready", "running"}:
+                vms[name]["state"] = "stopped"
         try:
             for name in order:
                 vm = vms[name]
@@ -2376,13 +2408,18 @@ class KVMOrchestrator:
                 )
             desired_active = vm.get("state") in {"ready", "running"}
             if active != desired_active:
+                # Host/guest shutdown does not alter resource identity. Never
+                # start a VM during state-only reconciliation; explicit start
+                # performs readiness checks and refreshes its address.
                 actions.append(
                     {
                         "resource": domain,
-                        "action": "manual-recovery",
-                        "reason": "power state drift",
+                        "action": "manual-recovery" if active else "mark-stopped",
+                        "reason": "power state drift" if active else "domain is stopped",
                     }
                 )
+                if repair and not active:
+                    vm["state"] = "stopped"
         expected_digest = state.get("definition_digest")
         snapshot = self._instance_path(lab_id) / "definition"
         if isinstance(expected_digest, str) and (
@@ -2396,13 +2433,16 @@ class KVMOrchestrator:
                 }
             )
         if repair:
-            state["state"] = (
-                "failed_cleanup"
-                if repaired_missing_network
-                else "degraded"
-                if actions
-                else state.get("state", "ready")
-            )
+            if actions and all(action["action"] == "mark-stopped" for action in actions):
+                self._set_power_state(state, {}, {})
+            else:
+                state["state"] = (
+                    "failed_cleanup"
+                    if repaired_missing_network
+                    else "degraded"
+                    if actions
+                    else state.get("state", "ready")
+                )
             save_state(path, state)
         return actions
 
@@ -2743,6 +2783,7 @@ class KVMOrchestrator:
         )
         if existing_backup is not None:
             raise OrchestrationError(f"reset backup already exists: {existing_backup}")
+        self._ensure_network_active(state)
         journal: dict[str, Any] = {
             "schema_version": 1,
             "id": lab_id,

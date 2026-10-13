@@ -409,6 +409,11 @@ class Application:
         orchestrator = self._orchestrator(config)
         with orchestrator.grade_session(args.lab) as session:
             drift = session.reconcile(repair=False)
+            if drift and all(item["action"] == "mark-stopped" for item in drift):
+                raise LabctlError(
+                    f"lab is not running; use labctl lab start {args.lab} before grading",
+                    ExitStatus.PREREQUISITE,
+                )
             if drift:
                 details = "; ".join(f"{item['resource']}: {item['reason']}" for item in drift)
                 raise LabctlError(

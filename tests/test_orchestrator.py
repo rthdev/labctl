@@ -194,6 +194,12 @@ def test_create_uses_owned_isolated_resources_and_persists_digest(tmp_path: Path
     assert overlay_create[-1] == str(8 * 1024**3)
     assert state["vms"]["node"]["disk_size_bytes"] == 8 * 1024**3
     assert any(call[0] == "virt-install" and "--noautoconsole" in call for call in runner.calls)
+    commands = [call[3] for call in runner.calls if call[0] == "virsh"]
+    assert (
+        commands.index("net-define") < commands.index("net-autostart") < commands.index("net-start")
+    )
+    assert "autostart" not in commands
+    assert not any("--autostart" in call for call in runner.calls)
     assert all("shell=True" not in call for call in runner.calls)
     metadata_calls = [call for call in runner.calls if "metadata" in call and "--set" in call]
     metadata = metadata_calls[0][metadata_calls[0].index("--set") + 1]
@@ -699,8 +705,9 @@ def _host_keys(directory: Path) -> tuple[Path, Path]:
     return host_private, host_public
 
 
-def test_create_rolls_back_resources_and_state_on_failure(tmp_path: Path) -> None:
-    runner = FakeRunner(fail_on="virt-install")
+@pytest.mark.parametrize("failure", ["virt-install", "net-autostart"])
+def test_create_rolls_back_resources_and_state_on_failure(tmp_path: Path, failure: str) -> None:
+    runner = FakeRunner(fail_on=failure)
     images = ImageStore(tmp_path / "images", runner=runner)
     _image(images)
     orchestrator = KVMOrchestrator(
@@ -710,10 +717,13 @@ def test_create_rolls_back_resources_and_state_on_failure(tmp_path: Path) -> Non
         keygen=lambda directory: _keys(directory),
         host_keygen=lambda directory: _host_keys(directory),
     )
-    with pytest.raises(OrchestrationError, match="failed virt-install"):
+    with pytest.raises(OrchestrationError, match=f"failed {failure}"):
         orchestrator.create(_definition(tmp_path), "qemu:///session", images)
     assert not (tmp_path / "state/labs/LX001.json").exists()
+    assert not orchestrator._journal_path("LX001").exists()
     assert any("net-undefine" in call for call in runner.calls)
+    if failure == "net-autostart":
+        assert not any(call[0] == "virt-install" for call in runner.calls)
 
 
 def test_create_crash_journal_is_recovered_on_retry(tmp_path: Path) -> None:
@@ -1527,13 +1537,13 @@ class StateRunner:
             name = resource.rsplit("-", 1)[-1]
             return CommandResult(call, 0, _ownership_xml("u1000-lx001", "domain", name), "")
         if command == "net-dumpxml":
-            output = self.network_xml or (
-                "<network><metadata>"
-                + _ownership_xml("u1000-lx001", "network")
-                + "</metadata></network>"
+            output = self.network_xml or KVMOrchestrator(Path(), Path())._network_xml(
+                resource, "u1000-lx001"
             )
             return CommandResult(call, 0, output, "")
-        if command in {"dominfo", "net-info"}:
+        if command == "net-info":
+            return CommandResult(call, 0, "Active: yes\nPersistent: yes\n", "")
+        if command == "dominfo":
             return CommandResult(call, 0, "exists", "")
         if command == "domstate":
             return CommandResult(call, 0, self.power[resource] + "\n", "")
@@ -3285,10 +3295,14 @@ def test_network_probe_error_is_not_persisted_as_missing_during_reconcile(tmp_pa
         ("domain", "domain configuration drift"),
         ("attachment", "domain configuration drift"),
         ("backing", "disk backing drift"),
-        ("power", "power state drift"),
+        ("power", "domain is stopped"),
+        ("unexpected-power", "power state drift"),
     ],
 )
-def test_reconcile_reports_material_grading_drift(tmp_path: Path, drift: str, reason: str) -> None:
+@pytest.mark.parametrize("offline", [False, True])
+def test_reconcile_reports_material_grading_drift(
+    tmp_path: Path, drift: str, reason: str, offline: bool
+) -> None:
     uid = "u1000-lx001"
     network = f"labctl-{uid}-network"
     domain = f"labctl-{uid}-node"
@@ -3332,15 +3346,18 @@ def test_reconcile_reports_material_grading_drift(tmp_path: Path, drift: str, re
             ],
         }
     )
+    if drift == "unexpected-power":
+        vm["state"] = "stopped"
     _write_state(tmp_path, {"node": vm})
 
     class DriftRunner(StateRunner):
         def run(self, argv: list[str], *, check: bool = True) -> CommandResult:
             call = tuple(argv)
             if argv[0] == "qemu-img":
-                if drift != "power":
+                if drift != "power" and not offline:
                     raise AssertionError("active-domain reconciliation must use the QEMU monitor")
-                return CommandResult(call, 0, json.dumps({"backing-filename": str(backing)}), "")
+                observed = backing if drift != "backing" else tmp_path / "foreign"
+                return CommandResult(call, 0, json.dumps({"backing-filename": str(observed)}), "")
             command = argv[3]
             if command == "qemu-monitor-command":
                 observed = backing if drift != "backing" else tmp_path / "foreign"
@@ -3375,16 +3392,35 @@ def test_reconcile_reports_material_grading_drift(tmp_path: Path, drift: str, re
                 )
                 return CommandResult(call, 0, xml, "")
             if command == "domstate":
-                power = "shut off" if drift == "power" else "running"
+                power = (
+                    "shut off"
+                    if drift == "power" or (offline and drift != "unexpected-power")
+                    else "running"
+                )
                 return CommandResult(call, 0, power + "\n", "")
             return super().run(argv, check=check)
 
+    runner = DriftRunner({domain: "running"})
     orchestrator = KVMOrchestrator(
         tmp_path / "data",
         tmp_path / "state",
-        runner=DriftRunner({domain: "running"}),
+        runner=runner,
     )
 
     actions = orchestrator.reconcile("LX001", repair=False)
 
     assert any(reason in action["reason"] for action in actions)
+    if drift == "power":
+        assert actions == [
+            {"resource": domain, "action": "mark-stopped", "reason": "domain is stopped"}
+        ]
+        assert load_state(tmp_path / "state/labs/LX001.json")["vms"]["node"]["state"] == "ready"
+        orchestrator.reconcile("LX001", repair=True)
+        repaired = load_state(tmp_path / "state/labs/LX001.json")
+        assert repaired["vms"]["node"]["state"] == "stopped"
+        assert repaired["state"] == "stopped"
+        assert orchestrator.reconcile("LX001", repair=False) == []
+        assert not any(
+            call[0] == "virsh" and call[3] in {"start", "net-start", "net-autostart"}
+            for call in runner.calls
+        )

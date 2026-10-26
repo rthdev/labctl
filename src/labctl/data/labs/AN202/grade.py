@@ -152,6 +152,7 @@ def _persistent_loop_mount(fstab: str) -> bool:
             len(fields) >= 4
             and fields[:3] == ["/var/lib/an202/storage.img", "/srv/an202", "ext4"]
             and "loop" in fields[3].split(",")
+            and "noauto" not in fields[3].split(",")
         ):
             return True
     return False
@@ -273,10 +274,14 @@ def main() -> int:
         checks = (
             ("httpd is enabled", "/usr/bin/systemctl is-enabled httpd", "enabled"),
             ("httpd is active", "/usr/bin/systemctl is-active httpd", "active"),
-            ("firewall allows HTTP", "/usr/bin/firewall-cmd --quiet --query-service=http", None),
+            (
+                "firewall allows HTTP",
+                "/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --query-service=http",
+                None,
+            ),
             (
                 "firewall permanently allows HTTP",
-                "/usr/bin/firewall-cmd --quiet --permanent --query-service=http",
+                "/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --permanent --query-service=http",
                 None,
             ),
             ("firewalld is enabled", "/usr/bin/systemctl is-enabled firewalld", "enabled"),

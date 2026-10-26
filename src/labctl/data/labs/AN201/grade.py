@@ -200,7 +200,14 @@ def main() -> int:
                 app_response.returncode == 0 and app_response.stdout.strip() == "AN201 application",
             )
         )
-        response = _remote(ssh, hosts["proxy"], "/usr/bin/curl -fsS --max-time 5 http://127.0.0.1/")
+        proxy_address = ipaddress.ip_address(hosts["proxy"]["address"])
+        authority = f"[{proxy_address}]" if proxy_address.version == 6 else str(proxy_address)
+        proxy_url = f"http://{authority}/"
+        response = _remote(
+            ssh,
+            hosts["controller"],
+            f"/usr/bin/curl --noproxy '*' -fsS --max-time 5 {shlex.quote(proxy_url)}",
+        )
         results.append(
             (
                 "proxy serves the application end to end",
@@ -214,9 +221,10 @@ def main() -> int:
             try:
                 probe = _remote(
                     ssh,
-                    hosts["proxy"],
-                    "/usr/bin/curl -fsS --max-time 5 -H 'X-Labctl-Probe: backend-stopped' "
-                    "http://127.0.0.1/",
+                    hosts["controller"],
+                    "/usr/bin/curl --noproxy '*' -fsS --max-time 5 "
+                    "-o /dev/null -w '%{http_code}' -H 'X-Labctl-Probe: backend-stopped' "
+                    f"{shlex.quote(proxy_url)}",
                 )
             finally:
                 restarted = _remote(
@@ -228,7 +236,8 @@ def main() -> int:
                 bool(
                     stopped.returncode == 0
                     and probe
-                    and probe.returncode != 0
+                    and probe.returncode == 22
+                    and probe.stdout.strip() in {"502", "503", "504"}
                     and restarted
                     and restarted.returncode == 0
                 ),

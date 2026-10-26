@@ -18,7 +18,9 @@ CHECKS = (
     ),
     (
         "httpd domain is not permissive",
-        "/usr/bin/sudo /usr/bin/bash -c '! semanage permissive -l | grep -Fxq httpd_t && echo confined'",
+        "/usr/bin/sudo -n /usr/bin/bash -c 'domains=$(semanage permissive -l) || exit 1; "
+        'printf "%s\\n" "$domains" | grep -Fx httpd_t >/dev/null; '
+        'test "$?" -eq 1 && echo confined\'',
         "confined",
     ),
     ("httpd is enabled", "/usr/bin/systemctl is-enabled httpd", "enabled"),

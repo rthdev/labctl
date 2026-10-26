@@ -214,7 +214,7 @@ def test_lx202_scheduled_maintenance(tmp_path: Path) -> None:
             """/usr/bin/bash -c 'systemctl cat lx202-maintenance.timer | grep -Eq "^OnCalendar=(\\*-[*]-[*] )?02:15(:00)?$" && echo scheduled'""": "scheduled",
             """/usr/bin/sudo /usr/bin/bash -c 'install -d -m 0755 /var/tmp/lx202-cache; printf stale > /var/tmp/lx202-cache/stale.tmp; rm -f /var/log/lx202-maintenance.log; systemctl start lx202-maintenance.service && echo invoked'""": "invoked",
             "/usr/bin/test ! -e /var/tmp/lx202-cache/stale.tmp": "",
-            "/usr/bin/cat /var/log/lx202-maintenance.log": "maintenance complete",
+            "/usr/bin/sudo -n /usr/bin/cat /var/log/lx202-maintenance.log": "maintenance complete",
         },
     )
 
@@ -227,7 +227,7 @@ def test_lx301_secure_web_service_selinux(tmp_path: Path) -> None:
         {
             "/usr/sbin/getenforce": "Enforcing",
             """/usr/bin/bash -c 'grep -Eq "^[[:space:]]*SELINUX=enforcing[[:space:]]*$" /etc/selinux/config && echo enforcing'""": "enforcing",
-            """/usr/bin/sudo /usr/bin/bash -c '! semanage permissive -l | grep -Fxq httpd_t && echo confined'""": "confined",
+            """/usr/bin/sudo -n /usr/bin/bash -c 'domains=$(semanage permissive -l) || exit 1; printf "%s\\n" "$domains" | grep -Fx httpd_t >/dev/null; test "$?" -eq 1 && echo confined'""": "confined",
             "/usr/bin/systemctl is-enabled httpd": "enabled",
             "/usr/bin/systemctl is-active httpd": "active",
             """/usr/bin/sudo /usr/bin/bash -c 'semanage port -l | grep -E "^http_port_t[[:space:]]+tcp.*(^|[,[:space:]])8088($|[,[:space:]])" >/dev/null && echo labeled'""": "labeled",
@@ -300,7 +300,7 @@ def test_lx402_production_incident_diagnosis(tmp_path: Path) -> None:
             "/usr/bin/test ! -e /srv/incident/runaway.log": "",
             "/usr/bin/systemctl is-enabled lx402-burner": {"stdout": "disabled", "returncode": 1},
             "/usr/bin/systemctl is-active lx402-burner": {"stdout": "inactive", "returncode": 3},
-            """/usr/bin/bash -c 'printf "%s\\n%s\\n" "root cause: disk pressure and runaway burner" "recovery: capacity restored; api enabled and healthy" | diff -u - /var/log/lx402-incident-report >/dev/null && echo exact'""": "exact",
+            """/usr/bin/bash -c 'printf "%s\\n%s\\n" "root cause: disk pressure and runaway burner" "recovery: capacity restored; api enabled and healthy" | /usr/bin/sudo -n /usr/bin/diff -u - /var/log/lx402-incident-report >/dev/null && echo exact'""": "exact",
         },
     )
 

@@ -37,7 +37,7 @@ CHECKS = (
         "incident report contains exactly the required evidence",
         '/usr/bin/bash -c \'printf "%s\\n%s\\n" "root cause: disk pressure and runaway burner" '
         '"recovery: capacity restored; api enabled and healthy" | '
-        "diff -u - /var/log/lx402-incident-report >/dev/null && echo exact'",
+        "/usr/bin/sudo -n /usr/bin/diff -u - /var/log/lx402-incident-report >/dev/null && echo exact'",
         "exact",
     ),
 )

@@ -156,10 +156,14 @@ def test_an002_grades_account_and_shared_directory_outcomes_only(tmp_path: Path)
         "/usr/bin/getent group automation": "automation:x:2001:deploy,auditor",
         "/usr/bin/id -nG deploy": "deploy automation",
         "/usr/bin/id -nG auditor": "auditor automation",
-        "/usr/bin/test -d -- /srv/automation": "",
+        "/usr/bin/test -d /srv/automation": "",
         "/usr/bin/stat -c '%U:%G %a' /srv/automation": "root:automation 2770",
-        "/usr/bin/stat -c '%U:%G %a' /home/deploy/.ssh/authorized_keys": "deploy:deploy 600",
-        "/usr/bin/base64 -w0 -- /home/deploy/.ssh/authorized_keys": AUTHORIZED_KEY_B64,
+        "/usr/bin/sudo -n /usr/bin/stat -c '%U:%G %a' /home/deploy/.ssh/authorized_keys": (
+            "deploy:deploy 600"
+        ),
+        "/usr/bin/sudo -n /usr/bin/base64 -w0 -- /home/deploy/.ssh/authorized_keys": (
+            AUTHORIZED_KEY_B64
+        ),
     }
     result, calls = _run_grader(tmp_path, "AN002", answers)
 
@@ -181,10 +185,14 @@ def test_an002_rejects_non_directory_with_matching_stat_metadata(tmp_path: Path)
         "/usr/bin/getent group automation": "automation:x:2001:deploy,auditor",
         "/usr/bin/id -nG deploy": "deploy automation",
         "/usr/bin/id -nG auditor": "auditor automation",
-        "/usr/bin/test -d -- /srv/automation": {"returncode": 1},
+        "/usr/bin/test -d /srv/automation": {"returncode": 1},
         "/usr/bin/stat -c '%U:%G %a' /srv/automation": "root:automation 2770",
-        "/usr/bin/stat -c '%U:%G %a' /home/deploy/.ssh/authorized_keys": "deploy:deploy 600",
-        "/usr/bin/base64 -w0 -- /home/deploy/.ssh/authorized_keys": AUTHORIZED_KEY_B64,
+        "/usr/bin/sudo -n /usr/bin/stat -c '%U:%G %a' /home/deploy/.ssh/authorized_keys": (
+            "deploy:deploy 600"
+        ),
+        "/usr/bin/sudo -n /usr/bin/base64 -w0 -- /home/deploy/.ssh/authorized_keys": (
+            AUTHORIZED_KEY_B64
+        ),
     }
 
     result, _calls = _run_grader(tmp_path, "AN002", answers)
@@ -282,8 +290,12 @@ def test_an002_rejects_wrong_authorized_key(tmp_path: Path) -> None:
         "/usr/bin/id -nG deploy": "deploy automation",
         "/usr/bin/id -nG auditor": "auditor automation",
         "/usr/bin/stat -c '%U:%G %a' /srv/automation": "root:automation 2770",
-        "/usr/bin/stat -c '%U:%G %a' /home/deploy/.ssh/authorized_keys": "deploy:deploy 600",
-        "/usr/bin/base64 -w0 -- /home/deploy/.ssh/authorized_keys": "d3Jvbmcta2V5Cg==",
+        "/usr/bin/sudo -n /usr/bin/stat -c '%U:%G %a' /home/deploy/.ssh/authorized_keys": (
+            "deploy:deploy 600"
+        ),
+        "/usr/bin/sudo -n /usr/bin/base64 -w0 -- /home/deploy/.ssh/authorized_keys": (
+            "d3Jvbmcta2V5Cg=="
+        ),
     }
 
     result, _calls = _run_grader(tmp_path, "AN002", answers)

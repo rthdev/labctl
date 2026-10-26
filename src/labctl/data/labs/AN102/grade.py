@@ -146,14 +146,23 @@ def _recap_reports_no_changes(output: str) -> bool:
     if not markers:
         return False
     recap = output[markers[-1].end() :]
-    lines = re.findall(r"(?m)^\s*target\s*:\s+([^\r\n]+?)\s*$", recap)
-    if len(lines) != 1:
-        return False
-    tokens = lines[0].split()
-    if not tokens or any(not re.fullmatch(r"[a-z_]+=\d+", token) for token in tokens):
-        return False
-    stats = dict(token.split("=", 1) for token in tokens)
-    return all(stats.get(field) == "0" for field in ("changed", "failed", "unreachable"))
+    hosts: set[str] = set()
+    for line in recap.splitlines():
+        if not line.strip():
+            continue
+        match = re.fullmatch(r"\s*(\S+)\s*:\s+(.+?)\s*", line)
+        if not match or match[1] in hosts:
+            return False
+        hosts.add(match[1])
+        tokens = match[2].split()
+        if any(not re.fullmatch(r"[a-z_]+=\d+", token) for token in tokens):
+            return False
+        stats = dict(token.split("=", 1) for token in tokens)
+        if len(stats) != len(tokens) or any(
+            stats.get(field) != "0" for field in ("changed", "failed", "unreachable")
+        ):
+            return False
+    return "target" in hosts
 
 
 def main() -> int:

@@ -130,11 +130,14 @@ def test_an201_runs_controller_playbook_and_grades_both_tiers_end_to_end(tmp_pat
         "/usr/bin/systemctl is-enabled nginx": "enabled",
         "/usr/bin/systemctl is-active nginx": "active",
         "/usr/bin/curl -fsS --max-time 5 http://127.0.0.1/": "AN201 application",
+        "student@192.0.2.12|/usr/bin/curl --noproxy '*' -fsS --max-time 5 "
+        "http://192.0.2.11/": "AN201 application",
         "/usr/bin/sudo -n /usr/bin/systemctl stop nginx": "",
         "/usr/bin/sudo -n /usr/bin/systemctl start nginx": "",
-        "/usr/bin/curl -fsS --max-time 5 -H 'X-Labctl-Probe: backend-stopped' http://127.0.0.1/": {
-            "returncode": 7,
-            "stdout": "",
+        "/usr/bin/curl --noproxy '*' -fsS --max-time 5 -o /dev/null -w '%{http_code}' "
+        "-H 'X-Labctl-Probe: backend-stopped' http://192.0.2.11/": {
+            "returncode": 22,
+            "stdout": "502",
         },
     }
 
@@ -149,7 +152,7 @@ def test_an201_runs_controller_playbook_and_grades_both_tiers_end_to_end(tmp_pat
         for destination, command in zip(destinations, commands, strict=True)
     )
     assert commands.count("/usr/bin/systemctl is-active nginx") == 2
-    assert commands.count("/usr/bin/curl -fsS --max-time 5 http://127.0.0.1/") == 2
+    assert commands.count("/usr/bin/curl -fsS --max-time 5 http://127.0.0.1/") == 1
     assert "/usr/bin/sudo -n /usr/bin/systemctl stop nginx" in commands
     assert "/usr/bin/sudo -n /usr/bin/systemctl start nginx" in commands
     assert any("X-Labctl-Probe: backend-stopped" in command for command in commands)
@@ -191,8 +194,8 @@ def test_an202_grades_persistent_loop_storage_web_firewall_and_selinux(tmp_path:
         "/usr/bin/curl -fsS --max-time 5 "
         "http://192.0.2.10/labctl-an202-probe-*": "AN202 durable web",
         "/usr/bin/sudo -n /usr/bin/rm -f -- /srv/an202/www/labctl-an202-probe-*": "",
-        "/usr/bin/firewall-cmd --quiet --query-service=http": "",
-        "/usr/bin/firewall-cmd --quiet --permanent --query-service=http": "",
+        "/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --query-service=http": "",
+        "/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --permanent --query-service=http": "",
         "/usr/bin/systemctl is-enabled firewalld": "enabled",
         "/usr/bin/systemctl is-active firewalld": "active",
         "/usr/sbin/getenforce": "Enforcing",
@@ -224,8 +227,11 @@ def test_an202_grades_persistent_loop_storage_web_firewall_and_selinux(tmp_path:
     assert "/usr/bin/stat -c '%s %b' -- /var/lib/an202/storage.img" in commands
     assert "/usr/bin/findmnt -n -o SOURCE,FSTYPE --target /srv/an202" in commands
     assert "/usr/sbin/losetup --list --noheadings --output NAME,BACK-FILE" in commands
-    assert "/usr/bin/firewall-cmd --quiet --query-service=http" in commands
-    assert "/usr/bin/firewall-cmd --quiet --permanent --query-service=http" in commands
+    assert "/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --query-service=http" in commands
+    assert (
+        "/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --permanent --query-service=http"
+        in commands
+    )
     assert "/usr/bin/systemctl is-enabled firewalld" in commands
     assert "/usr/bin/systemctl is-active firewalld" in commands
     assert not any(str(tmp_path / "management-key") in command for command in commands)
@@ -307,9 +313,9 @@ def test_an302_grades_accounts_secret_and_narrow_privilege_without_exposing_secr
         "/usr/bin/sudo -n /usr/bin/base64 -w0 -- /etc/sudoers.d/an302-deployer": (
             "ZGVwbG95ZXIgQUxMPShyb290KSAvdXNyL2Jpbi9zeXN0ZW1jdGwgcmVzdGFydCBhbjMwMi1hZ2VudAo="
         ),
-        "/usr/bin/sudo -n -u deployer /usr/bin/cat /etc/an302/secret": {
-            "returncode": 1,
-            "stdout": "",
+        "/usr/bin/sudo -n -u deployer /usr/bin/python3 -I -c *": {
+            "returncode": 0,
+            "stdout": "AN302_PERMISSION_DENIED",
         },
     }
     result, calls = _run_grader(tmp_path, "AN302", ("target", "controller"), answers)
@@ -323,6 +329,9 @@ def test_an302_grades_accounts_secret_and_narrow_privilege_without_exposing_secr
     assert not any(str(tmp_path / "management-key") in command for command in commands)
     assert "/usr/bin/sudo -n -u auditor /usr/bin/sha256sum -- /etc/an302/secret" in commands
     assert "/usr/bin/sudo -n /usr/bin/base64 -w0 -- /etc/sudoers.d/an302-deployer" in commands
-    assert "/usr/bin/sudo -n -u deployer /usr/bin/cat /etc/an302/secret" in commands
+    assert any(
+        command.startswith("/usr/bin/sudo -n -u deployer /usr/bin/python3 -I -c ")
+        for command in commands
+    )
     _assert_only_target_host_keys_staged(calls, ("target",))
     assert commands[-1] == "/usr/bin/rm -rf -- /tmp/labctl-an302-grade"

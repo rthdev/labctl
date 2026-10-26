@@ -25,6 +25,18 @@ PLAYBOOK_COMMAND = (
     f"/usr/bin/ansible-playbook -i {STAGING}/inventory.ini /home/student/ansible-lab/site.yml"
 )
 CLEANUP_COMMAND = f"/usr/bin/rm -rf -- {STAGING}"
+DENIAL_PROGRAM = """import sys
+try:
+    with open('/etc/an302/secret', 'rb'):
+        pass
+except PermissionError:
+    print('AN302_PERMISSION_DENIED')
+else:
+    sys.exit(1)
+"""
+DENIAL_COMMAND = "/usr/bin/sudo -n -u deployer /usr/bin/python3 -I -c " + shlex.quote(
+    DENIAL_PROGRAM
+)
 _PUBLIC_KEY = re.compile(r"^ssh-ed25519 [A-Za-z0-9+/]+={0,3}(?: [A-Za-z0-9@._-]+)?$")
 _USER = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 
@@ -205,9 +217,9 @@ def main() -> int:
             ),
             (
                 "deployer cannot read the secret",
-                "/usr/bin/sudo -n -u deployer /usr/bin/cat /etc/an302/secret",
-                None,
-                False,
+                DENIAL_COMMAND,
+                "AN302_PERMISSION_DENIED",
+                True,
             ),
         )
         for description, command, expected, expect_success in checks:

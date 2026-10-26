@@ -216,6 +216,29 @@ def test_cross_checks_exist(lab_id: str) -> None:
     assert m.connected({}) is False
 
 
+@pytest.mark.parametrize("field", ["EffectiveCaps", "BoundingCaps"])
+@pytest.mark.parametrize("value", [None, [], ["CAP_CHOWN"], {}, "", False, 0])
+def test_ct302_capability_serialization(
+    monkeypatch: pytest.MonkeyPatch, field: str, value: object
+) -> None:
+    values = answers(monkeypatch, "CT302")
+    item = json.loads(values["/usr/bin/podman inspect ct302-secure"])[0]
+    item[field] = value
+    assert module("CT302").valid("inspect", json.dumps([item])) is (value is None or value == [])
+    del item[field]
+    assert not module("CT302").valid("inspect", json.dumps([item]))
+
+
+@pytest.mark.parametrize("field", ["CapEff", "CapBnd"])
+def test_ct302_rejects_effective_capabilities(field: str) -> None:
+    probe = (
+        "10001\n10001\nro\nNoNewPrivs:\t1\nCapEff:\t0000000000000000\n"
+        "CapBnd:\t0000000000000000\n268435456\n64\n50000 100000\n"
+    )
+    probe = probe.replace(field + ":\t0000000000000000", field + ":\t0000000000000001")
+    assert not module("CT302").valid("probe", probe)
+
+
 def test_effective_resources_and_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
     values = answers(monkeypatch, "CT302")
     item = json.loads(values["/usr/bin/podman inspect ct302-secure"])[0]
@@ -240,7 +263,8 @@ def test_setup_mapping_and_user_manager_contract(lab_id: str) -> None:
     assert 'systemctl start "user@$uid.service"' in setup
     assert "HOME=/home/student" in setup
     assert "DBUS_SESSION_BUS_ADDRESS=" in setup
-    assert "--pull=never" in setup or "podman image exists" in setup
+    assert "podman pull registry.access.redhat.com/ubi9/" in setup
+    assert "ct-image-provenance" in setup
 
 
 def test_quadlet_contract_explains_boot_dependency() -> None:

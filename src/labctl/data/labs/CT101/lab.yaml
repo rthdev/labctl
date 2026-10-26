@@ -3,7 +3,7 @@ id: CT101
 title: Publish a rootless web service
 goal: Publish a container web service on an explicitly loopback-bound rootless port.
 instructions: |
-  Create running `ct101-web` from `docker.io/library/alpine:3.20`. Serve
+  Create running `ct101-web` from `registry.access.redhat.com/ubi9/httpd-24:9.8`. Serve
   `CT101 rootless web` (newline allowed) at `/index.html` on TCP 8080 in the
   container and publish exactly `127.0.0.1:8080:8080`.
 
@@ -11,13 +11,23 @@ instructions: |
   the preloaded mutable-tag image. Do not use sudo, privileged mode, a host web
   server, or a wildcard host bind. Grading correlates inspect port state with a
   request executed in `ct101-web`; it does not contact a registry.
-  Hint: Alpine includes BusyBox `httpd`. Its foreground form is
-  `httpd -f -p 8080 -h /srv`; create `/srv/index.html` before starting it.
+  The UBI Apache image runs as UID 1001 and defaults to `/usr/bin/run-httpd`,
+  which configures Apache for non-root port 8080. Write `/var/www/html/index.html`
+  (not `/opt/app-root/src/index.html`) before `exec /usr/bin/run-httpd` in a shell
+  command, or bind a readable prepared document root with an SELinux label.
+  Use `curl --noproxy '*' -fsS` for probes; the base image has no web server.
   The grader probes both the container-local endpoint and the host loopback port.
+
+  Fresh creation refreshes the required UBI 9.8 minor tags, even if cached.
+  Resolved image IDs and repository digests are recorded for diagnostics in
+  `/var/lib/labctl/ct-image-provenance`; these are observations, not digest pins.
+  Grading never pulls. A reset reuses the saved definition/setup and rebuilds
+  guest storage, so its saved tags can resolve to newer bytes. Recreate the lab
+  to adopt an updated catalogue; a reset does not migrate old assignments.
 
   ## Common environment and boundaries
   One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
-  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Podman and `registry.access.redhat.com/ubi9/httpd-24:9.8` (preloaded in your image store).
   Use `--pull=never` for offline runs. Package/image acquisition during setup needs
   Internet; the upstream image tag is mutable, not digest-pinned. No host container
   engine is used. Keep SELinux confinement intact; never use privileged containers,

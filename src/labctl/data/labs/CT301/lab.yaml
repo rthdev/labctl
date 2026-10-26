@@ -4,7 +4,7 @@ title: Run a configured application pod
 goal: Run cooperating containers in one rootless pod with explicit read-only configuration.
 instructions: |
   Write `/home/student/ct301/app.conf` as exactly `mode=training` plus newline.
-  Create pod `ct301-stack` and running Alpine containers `ct301-web` and
+  Create pod `ct301-stack` and running containers `ct301-web` and
   `ct301-checker` in it. `ct301-web` needs `APP_MODE=training` and a read-only bind
   of that file to `/etc/ct301/app.conf`; serve it as `/config` on pod-local 8080.
   The checker must be able to request `http://127.0.0.1:8080/config`.
@@ -13,22 +13,59 @@ instructions: |
   copy config into the image, or contact a registry. The preloaded tag is mutable.
   Use a shared pod network namespace (the normal Podman pod default). An optional
   infra container is allowed. Keep SELinux enabled; use `:ro,Z` for this private
-  configuration bind. Alpine's BusyBox `httpd -f -p 8080 -h /srv` can serve a
-  `/srv/config` symlink pointing to `/etc/ct301/app.conf`.
+  configuration bind. Use `registry.access.redhat.com/ubi9/httpd-24:9.8` for
+  `ct301-web` and `registry.access.redhat.com/ubi9/ubi:9.8` for `ct301-checker`.
+  Keep the checker running with `sleep infinity`; use `curl --noproxy '*'`.
+  Create `/var/www/html/config` as a symlink to `/etc/ct301/app.conf` inside web.
+  The original host file must be readable by UID 1001 (mode 0644 is suitable).
+  Do not substitute a checker-hosted server, copied response, backing-path symlink,
+  or overlapping bind mount. The mounted original must be the served file.
 
-  Use the preloaded BusyBox `httpd` in `ct301-web`, not a checker-hosted server.
-  Its live document root must resolve `/config` to the mounted file itself, not
-  an independent copy or constant response. Keep the host backing path free of
-  symlinks and do not overlay the configuration bind or any of its parent paths.
-  For this read-only grading probe, run `httpd` (or `busybox httpd`) with only
-  separate `-f`, `-v`, `-vv`, `-p PORT`, and/or `-h DIRECTORY` arguments; the document
-  root may vary. Do not add `httpd.conf`, redirects, CGI, or custom server options.
-  The grader correlates the web process's listening socket and live document root
-  with the original file's identity and exact bytes; it never edits configuration.
+  ## Static Apache contract
+  Run Apache as the image's default UID 1001. Supply `/tmp/ct-httpd.conf` inside
+  the container with exactly the following configuration (including final newline),
+  using a readable `:ro,Z` bind from `/home/student/ct-httpd.conf` or a file created
+  before startup. Start `/usr/sbin/httpd -f /tmp/ct-httpd.conf -DFOREGROUND`
+  instead of the default launcher; `-D FOREGROUND` is also accepted. There are
+  no includes, redirects, CGI, aliases, extra modules, or custom command options.
+  This constrained static server lets the grader correlate named-container
+  listener ownership, effective docroot inode, and exact backing bytes without
+  modifying learner data. Finish all configuration edits and permission/label
+  changes, wait at least 3 seconds, then start or fully restart the container.
+  Configuration changes require a full restart, not a graceful Apache reload;
+  merely waiting after an already-started server will not satisfy the check.
+  The grader conservatively requires config mtime and ctime to predate every
+  Apache process, with a timing margin, and rejects changes during its probe.
+  Keep the configuration and process set stable while grading. If Podman's
+  automatic `:Z` relabel occurs at launch, wait 3 seconds and restart again.
+
+  ```apache
+  ServerRoot "/etc/httpd"
+  LoadModule mpm_event_module modules/mod_mpm_event.so
+  LoadModule unixd_module modules/mod_unixd.so
+  LoadModule authz_core_module modules/mod_authz_core.so
+  Listen 8080
+  ServerName localhost
+  PidFile /tmp/ct-httpd.pid
+  ErrorLog /dev/stderr
+  DocumentRoot "/var/www/html"
+  <Directory "/var/www/html">
+      Options FollowSymLinks
+      AllowOverride None
+      Require all granted
+  </Directory>
+  ```
+
+  Fresh creation refreshes the required UBI 9.8 minor tags, even if cached.
+  Resolved image IDs and repository digests are recorded for diagnostics in
+  `/var/lib/labctl/ct-image-provenance`; these are observations, not digest pins.
+  Grading never pulls. A reset reuses the saved definition/setup and rebuilds
+  guest storage, so its saved tags can resolve to newer bytes. Recreate the lab
+  to adopt an updated catalogue; a reset does not migrate old assignments.
 
   ## Common environment and boundaries
   One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
-  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Podman and `registry.access.redhat.com/ubi9/ubi:9.8` (preloaded in your image store).
   Use `--pull=never` for offline runs. Package/image acquisition during setup needs
   Internet; the upstream image tag is mutable, not digest-pinned. No host container
   engine is used. Keep SELinux confinement intact; never use privileged containers,

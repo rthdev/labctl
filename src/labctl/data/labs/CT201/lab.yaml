@@ -4,7 +4,7 @@ title: Build an image with a Containerfile
 goal: Build a labeled local application image reproducibly from a learner-authored Containerfile.
 instructions: |
   Author `/home/student/ct201/Containerfile` using
-  `docker.io/library/alpine:3.20`. Set label
+  `registry.access.redhat.com/ubi9/ubi:9.8`. Set label
   `org.opencontainers.image.title="CT201 app"`, add `/app/result.txt` containing
   exactly `CT201 image build`, and choose a command that leaves the container up.
   Build `localhost/ct201-app:1`, then leave rootless `ct201-app` running from it.
@@ -15,9 +15,16 @@ instructions: |
   Bake the payload into the image; do not patch `/app` with exec or hide it under
   any volume/bind mount. The image ID, runtime filesystem diff, and payload are checked.
 
+  Fresh creation refreshes the required UBI 9.8 minor tags, even if cached.
+  Resolved image IDs and repository digests are recorded for diagnostics in
+  `/var/lib/labctl/ct-image-provenance`; these are observations, not digest pins.
+  Grading never pulls. A reset reuses the saved definition/setup and rebuilds
+  guest storage, so its saved tags can resolve to newer bytes. Recreate the lab
+  to adopt an updated catalogue; a reset does not migrate old assignments.
+
   ## Common environment and boundaries
   One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
-  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Podman and `registry.access.redhat.com/ubi9/ubi:9.8` (preloaded in your image store).
   Use `--pull=never` for offline runs. Package/image acquisition during setup needs
   Internet; the upstream image tag is mutable, not digest-pinned. No host container
   engine is used. Keep SELinux confinement intact; never use privileged containers,

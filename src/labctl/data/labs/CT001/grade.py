@@ -69,7 +69,7 @@ def _valid(kind: str, output: str) -> bool:
             and item["Name"] == "ct001-hello"
             and item["State"]["Status"] == "exited"
             and item["State"]["ExitCode"] == 0
-            and item["Config"]["Image"] == "docker.io/library/alpine:3.20"
+            and item["Config"]["Image"] == "registry.access.redhat.com/ubi9/ubi:9.8"
             and item["Config"]["Cmd"] == ["printf", "CT001 container complete\\n"]
             and item["HostConfig"]["Privileged"] is False
             and ":container_t:" in item["ProcessLabel"]

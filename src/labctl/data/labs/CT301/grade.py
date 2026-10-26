@@ -32,7 +32,7 @@ CHECKS = (
     ),
     (
         "checker reaches pod-local configured service",
-        "/usr/bin/podman exec ct301-checker wget -qO- http://127.0.0.1:8080/config",
+        "/usr/bin/podman exec ct301-checker curl -fsS --max-time 3 --noproxy '*' http://127.0.0.1:8080/config",
         "probe",
     ),
 )
@@ -80,7 +80,12 @@ def valid(k: str, t: str) -> bool:
             len(d) == 2
             and all(
                 x["State"]["Status"] == "running"
-                and x["Config"]["Image"] == "docker.io/library/alpine:3.20"
+                and x["Config"]["Image"]
+                == (
+                    "registry.access.redhat.com/ubi9/httpd-24:9.8"
+                    if x is web
+                    else "registry.access.redhat.com/ubi9/ubi:9.8"
+                )
                 and x["HostConfig"]["Privileged"] is False
                 and ":container_t:" in x["ProcessLabel"]
                 and not x["HostConfig"].get("PortBindings")

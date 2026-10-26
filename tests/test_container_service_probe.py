@@ -1,5 +1,6 @@
 """Execute the read-only service-proof logic with process/file evidence, never Podman."""
 
+# ruff: noqa: S108 -- fixture paths inside containers
 from __future__ import annotations
 
 import json
@@ -17,6 +18,23 @@ def probe(lab_id: str) -> ModuleType:
     result = ModuleType("service_probe")
     exec(compile(path.read_text(), str(path), "exec"), result.__dict__)  # noqa: S102
     return result
+
+
+HTTPD_CONFIG = """ServerRoot "/etc/httpd"
+LoadModule mpm_event_module modules/mod_mpm_event.so
+LoadModule unixd_module modules/mod_unixd.so
+LoadModule authz_core_module modules/mod_authz_core.so
+Listen 8080
+ServerName localhost
+PidFile /tmp/ct-httpd.pid
+ErrorLog /dev/stderr
+DocumentRoot "ROOT"
+<Directory "ROOT">
+    Options FollowSymLinks
+    AllowOverride None
+    Require all granted
+</Directory>
+"""
 
 
 def state(lab_id: str) -> tuple[tuple[str, ...], dict[tuple[str, ...], str]]:
@@ -46,20 +64,29 @@ def state(lab_id: str) -> tuple[tuple[str, ...], dict[tuple[str, ...], str]]:
         ): "sl local_address rem_address st tx_queue tr retrnsmt uid timeout inode\n"
         "0: 00000000:1F90 00000000:0000 0A 0:0 0:0 0 0 0 777\n",
         ("top", container, "pid"): "PID\n1\n",
-        (*prefix, "cat", "/proc/1/cmdline"): "httpd\0-f\0-p\08080\0-h\0/srv\0",
-        (*prefix, "readlink", "/proc/1/exe"): "/bin/busybox\n",
-        (*prefix, "readlink", "/proc/1/cwd"): "/srv\n",
+        (*prefix, "cat", "/proc/1/cmdline"): "httpd\0-f\0/tmp/ct-httpd.conf\0-DFOREGROUND\0",
+        (*prefix, "readlink", "/proc/1/exe"): "/usr/sbin/httpd\n",
+        (*prefix, "cat", "/proc/stat"): "btime 1000\n",
+        (*prefix, "cat", "/proc/1/stat"): "1 (httpd) " + "S " + "0 " * 18 + "10000 0\n",
         (
             *prefix,
-            "sh",
-            "-ec",
-            'test ! -e /etc/httpd.conf; test ! -e "$1/httpd.conf"; test ! -e "$2/httpd.conf"',
-            "sh",
-            "/srv",
-            "/srv",
-        ): "",
-        (*prefix, "stat", "-Lc", "%d:%i", "--", "/srv/" + endpoint): "42:101\n",
-        (*prefix, "stat", "-Lc", "%d:%i", "--", "/proc/1/cwd/" + endpoint): "42:101\n",
+            "stat",
+            "-Lc",
+            "%d|%i|%s|%Y|%Z|%y|%z",
+            "--",
+            "/tmp/ct-httpd.conf",
+        ): "42|303|400|1090|1090|precise-mtime|precise-ctime\n",
+        (*prefix, "cat", "/tmp/ct-httpd.conf"): HTTPD_CONFIG.replace(
+            "ROOT", "/var/www/html" if lab_id == "CT301" else "/srv"
+        ),
+        (
+            *prefix,
+            "stat",
+            "-Lc",
+            "%d:%i",
+            "--",
+            "/proc/1/root" + ("/var/www/html/" if lab_id == "CT301" else "/srv/") + endpoint,
+        ): "42:101\n",
         (
             *prefix,
             "sh",
@@ -83,6 +110,9 @@ def state(lab_id: str) -> tuple[tuple[str, ...], dict[tuple[str, ...], str]]:
         "empty-source",
         "shadow-mount",
         "extra-listener",
+        "stale-config",
+        "same-second-config",
+        "preserved-mtime",
     ],
 )
 def test_service_proof_connected_outcomes(
@@ -92,11 +122,26 @@ def test_service_proof_connected_outcomes(
     args, values = state(lab_id)
     container, mounted, source, endpoint, _ = args
     prefix = ("exec", container)
-    if fault == "checker-server":
+    if fault in {"stale-config", "same-second-config", "preserved-mtime"}:
+        mtime = 1090 if fault == "preserved-mtime" else 1100
+        ctime = 1100 if fault == "same-second-config" else 1101
+        values[(*prefix, "stat", "-Lc", "%d|%i|%s|%Y|%Z|%y|%z", "--", "/tmp/ct-httpd.conf")] = (
+            f"42|303|400|{mtime}|{ctime}|precise-mtime|precise-ctime\n"
+        )
+    elif fault == "checker-server":
         # A listener exists in the shared network but web's sole process sleeps.
         values[(*prefix, "cat", "/proc/1/cmdline")] = "sleep\0infinity\0"
     elif fault == "static-copy":
-        values[(*prefix, "stat", "-Lc", "%d:%i", "--", "/proc/1/cwd/" + endpoint)] = "42:202\n"
+        values[
+            (
+                *prefix,
+                "stat",
+                "-Lc",
+                "%d:%i",
+                "--",
+                "/proc/1/root" + ("/var/www/html/" if lab_id == "CT301" else "/srv/") + endpoint,
+            )
+        ] = "42:202\n"
     elif fault in {"wrong-source", "empty-source"}:
         values[("unshare", "cat", "--", source)] = "wrong\n" if fault == "wrong-source" else ""
     elif fault == "shadow-mount":
@@ -114,7 +159,13 @@ def test_service_proof_connected_outcomes(
 
 
 @pytest.mark.parametrize("lab_id", ["CT301", "CT402"])
-@pytest.mark.parametrize("cmdline", ["httpd\0-p\08080\0", "busybox\0httpd\0-p\08080\0-h\0.\0"])
+@pytest.mark.parametrize(
+    "cmdline",
+    [
+        "httpd\0-f\0/tmp/ct-httpd.conf\0-DFOREGROUND\0",
+        "/usr/sbin/httpd\0-f\0/tmp/ct-httpd.conf\0-D\0FOREGROUND\0",
+    ],
+)
 def test_service_proof_accepts_equivalent_commands(
     monkeypatch: pytest.MonkeyPatch, lab_id: str, cmdline: str
 ) -> None:
@@ -209,25 +260,58 @@ def test_probe_does_not_normalize_file_bytes(monkeypatch: pytest.MonkeyPatch, la
 
 
 @pytest.mark.parametrize("lab_id", ["CT301", "CT402"])
-def test_service_proof_uses_live_docroot_not_startup_argument(
-    monkeypatch: pytest.MonkeyPatch, lab_id: str
+@pytest.mark.parametrize("race", ["metadata", "pid-reuse", "old-parent", "bad-stat", "bad-boot"])
+def test_service_proof_rejects_unstable_or_stale_process_evidence(
+    monkeypatch: pytest.MonkeyPatch, lab_id: str, race: str
 ) -> None:
     m = probe(lab_id)
     args, values = state(lab_id)
     prefix = ("exec", args[0])
-    values[(*prefix, "readlink", "/proc/1/cwd")] = "/elsewhere\n"
-    values[(*prefix, "stat", "-Lc", "%d:%i", "--", "/proc/1/cwd/" + args[3])] = "42:999\n"
-    values[
-        (
-            *prefix,
-            "sh",
-            "-ec",
-            'test ! -e /etc/httpd.conf; test ! -e "$1/httpd.conf"; test ! -e "$2/httpd.conf"',
-            "sh",
-            "/srv",
-            "/elsewhere",
+    if race == "old-parent":
+        # A young worker owns the socket; the parent must still be checked.
+        values[("top", args[0], "pid")] = "PID\n1\n2\n"
+        for command, value in list(values.items()):
+            if command[:2] == prefix:
+                values[tuple(part.replace("/proc/1/", "/proc/2/") for part in command)] = value
+        values[(*prefix, "cat", "/proc/2/stat")] = values[(*prefix, "cat", "/proc/1/stat")].replace(
+            "10000", "9000"
         )
-    ] = ""
+    counts: dict[tuple[str, ...], int] = {}
+
+    def fake(*command: str) -> str:
+        counts[command] = counts.get(command, 0) + 1
+        value = values[command]
+        if race == "metadata" and "%d|%i|%s|%Y|%Z|%y|%z" in command and counts[command] == 2:
+            return value.replace("precise-ctime", "changed-nanoseconds")
+        if race == "pid-reuse" and "/proc/1/stat" in command and counts[command] == 2:
+            return value.replace("10000", "10001")
+        if race == "bad-stat" and "/proc/1/stat" in command:
+            return "truncated"
+        if race == "bad-boot" and "/proc/stat" in command:
+            return "no boot time\n"
+        return value
+
+    monkeypatch.setattr(m, "run", fake)
+    with pytest.raises(SystemExit) as exited:
+        m.main(*args)
+    assert exited.value.code == 1
+
+
+@pytest.mark.parametrize("lab_id", ["CT301", "CT402"])
+@pytest.mark.parametrize(
+    "extra",
+    [
+        "Include /tmp/other.conf\n",
+        "Alias /config /tmp/copy\n",
+        "<Location />\nSetHandler server-status\n</Location>\n",
+    ],
+)
+def test_service_proof_refuses_config_overrides(
+    monkeypatch: pytest.MonkeyPatch, lab_id: str, extra: str
+) -> None:
+    m = probe(lab_id)
+    args, values = state(lab_id)
+    values[("exec", args[0], "cat", "/tmp/ct-httpd.conf")] += extra
     monkeypatch.setattr(m, "run", lambda *command: values[command])
     assert not m.verify(*args)
 

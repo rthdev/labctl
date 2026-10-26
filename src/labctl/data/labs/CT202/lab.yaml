@@ -3,17 +3,28 @@ id: CT202
 title: Connect services on a private network
 goal: Connect an API and client through DNS on an internal rootless Podman network.
 instructions: |
-  Create internal network `ct202-private`. Run `ct202-api` and `ct202-client` from
-  the preloaded `docker.io/library/alpine:3.20`, both attached only to that network.
+  Create internal network `ct202-private`. Run `ct202-api` from
+  `registry.access.redhat.com/ubi9/httpd-24:9.8` and `ct202-client` from
+  `registry.access.redhat.com/ubi9/ubi:9.8`, both attached only to that network.
+  The API image runs as UID 1001; write `/var/www/html/health` before invoking
+  `exec /usr/bin/run-httpd` (the image's default non-root port-8080 launcher).
+  Keep the client running with `sleep infinity`; probe with `curl --noproxy '*'`.
   Give the API alias `api`; serve exact body `CT202 private API` at `/health` on
   port 8080. Leave both running and prove the client can request `http://api:8080/health`.
 
   Nothing objective-related exists initially. Do not publish a host port, use host
   networking, edit `/etc/hosts`, use sudo/privileged Podman, or contact a registry.
   The upstream image tag is mutable; setup acquisition requires Internet.
+  Fresh creation refreshes the required UBI 9.8 minor tags, even if cached.
+  Resolved image IDs and repository digests are recorded for diagnostics in
+  `/var/lib/labctl/ct-image-provenance`; these are observations, not digest pins.
+  Grading never pulls. A reset reuses the saved definition/setup and rebuilds
+  guest storage, so its saved tags can resolve to newer bytes. Recreate the lab
+  to adopt an updated catalogue; a reset does not migrate old assignments.
+
   ## Common environment and boundaries
   One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
-  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Podman and `registry.access.redhat.com/ubi9/ubi:9.8` (preloaded in your image store).
   Use `--pull=never` for offline runs. Package/image acquisition during setup needs
   Internet; the upstream image tag is mutable, not digest-pinned. No host container
   engine is used. Keep SELinux confinement intact; never use privileged containers,

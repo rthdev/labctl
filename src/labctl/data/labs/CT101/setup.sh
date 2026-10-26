@@ -32,4 +32,11 @@ CT_SUBIDS
 loginctl enable-linger student
 uid=$(id -u student)
 systemctl start "user@$uid.service"; install -d -m 0700 -o student -g student "/run/user/$uid" /home/student/.config /home/student/.config/containers
-runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman image exists docker.io/library/alpine:3.20 || runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman pull docker.io/library/alpine:3.20
+install -d -m 0755 /var/lib/labctl
+# Refresh mutable minor tags on fresh provisioning, never during grading.
+if [ ! -s /var/lib/labctl/ct-image-provenance ]; then
+ : > /var/lib/labctl/ct-image-provenance.new
+ runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman pull registry.access.redhat.com/ubi9/httpd-24:9.8
+ runuser -u student -- env HOME=/home/student USER=student LOGNAME=student XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /usr/bin/podman image inspect --format '{{.Id}} {{json .RepoDigests}}' registry.access.redhat.com/ubi9/httpd-24:9.8 >> /var/lib/labctl/ct-image-provenance.new
+ mv /var/lib/labctl/ct-image-provenance.new /var/lib/labctl/ct-image-provenance
+fi

@@ -1,15 +1,32 @@
-"""Read-only BusyBox static-service proof, executed with guest Python, not on the host.
+"""Read-only Apache static-service proof, executed with guest Python, not on the host.
 
 The explicit server scope avoids modifying learner data to challenge a response.
 Do not import this file via a loader that writes bytecode into the lab snapshot.
 """
 
-# ruff: noqa: S603
+# ruff: noqa: S603, S108 -- paths inside the learner container, never host writes
 from __future__ import annotations
 
+import os
 import posixpath
 import subprocess
 import time
+
+HTTPD_CONFIG = """ServerRoot "/etc/httpd"
+LoadModule mpm_event_module modules/mod_mpm_event.so
+LoadModule unixd_module modules/mod_unixd.so
+LoadModule authz_core_module modules/mod_authz_core.so
+Listen 8080
+ServerName localhost
+PidFile /tmp/ct-httpd.pid
+ErrorLog /dev/stderr
+DocumentRoot "/var/www/html"
+<Directory "/var/www/html">
+    Options FollowSymLinks
+    AllowOverride None
+    Require all granted
+</Directory>
+"""
 
 _deadline = float("inf")
 
@@ -51,52 +68,64 @@ def verify(container: str, mounted: str, source: str, endpoint: str, expected: s
     pids = run("top", container, "pid").splitlines()[1:]
     if not 1 <= len(pids) <= 32:
         return False
+    # Configuration bytes alone do not establish what an existing daemon loaded.
+    # Require both modification/change times to predate EVERY Apache process,
+    # including the parent (a newly forked worker must not conceal stale state).
+    # Two seconds cover integral stat/btime rounding and process tick granularity.
+    # This is conservative educational evidence, not hostile-tamper attestation.
+    metadata_args = ("stat", "-Lc", "%d|%i|%s|%Y|%Z|%y|%z", "--", "/tmp/ct-httpd.conf")
+    metadata = inside(*metadata_args)
+    fields = metadata.strip().split("|")
+    if len(fields) != 7:
+        return False
+    changed = max(int(fields[3]), int(fields[4]))
+    boot = [
+        line.split()[1]
+        for line in inside("cat", "/proc/stat").splitlines()
+        if line.startswith("btime ")
+    ]
+    if len(boot) != 1 or inside("cat", "/tmp/ct-httpd.conf") != HTTPD_CONFIG:
+        return False
+    ticks = os.sysconf("SC_CLK_TCK")
     owned = set()
+    starts = {}
     for raw_pid in pids:
         pid = raw_pid.strip()
         if not pid.isdecimal():
             return False
         args = inside("cat", "/proc/" + pid + "/cmdline").rstrip("\0").split("\0")
-        if posixpath.basename(args[0]) == "busybox":
-            args = args[1:]
         if not args or posixpath.basename(args[0]) != "httpd":
             continue
-        if inside("readlink", "/proc/" + pid + "/exe").strip() != "/bin/busybox":
+        if inside("readlink", "/proc/" + pid + "/exe").strip() != "/usr/sbin/httpd":
             return False
-        cwd = inside("readlink", "/proc/" + pid + "/cwd").strip()
-        root = cwd
-        i = 1
-        while i < len(args):
-            option = args[i]
-            if option in {"-f", "-v", "-vv"}:
-                i += 1
-            elif option in {"-p", "-h"} and i + 1 < len(args):
-                if option == "-h":
-                    root = args[i + 1]
-                i += 2
-            else:
-                return False
-        # BusyBox chdirs to -h before serving. Its current cwd is the effective
-        # document root, including when -h was relative at startup.
-        root = cwd if not root.startswith("/") else root
-        if not root.startswith("/") or not cwd.startswith("/"):
+        # Deliberately scoped static configuration: no includes, rewrites, CGI,
+        # aliases, per-directory overrides, or command-line injected directives.
+        if args[1:] not in (
+            ["-f", "/tmp/ct-httpd.conf", "-DFOREGROUND"],
+            ["-f", "/tmp/ct-httpd.conf", "-D", "FOREGROUND"],
+        ):
             return False
-        inside(
-            "sh",
-            "-ec",
-            'test ! -e /etc/httpd.conf; test ! -e "$1/httpd.conf"; test ! -e "$2/httpd.conf"',
-            "sh",
-            root,
-            cwd,
-        )
-        served = "/proc/" + pid + "/cwd/" + endpoint
+        # comm may contain spaces/parentheses; fields after its final ')' start
+        # at field 3, so starttime (field 22) is index 19.
+        start = inside("cat", "/proc/" + pid + "/stat").rsplit(")", 1)[1].split()[19]
+        if changed + 2 >= int(boot[0]) + int(start) / ticks:
+            return False
+        starts[pid] = start
+        served = "/proc/" + pid + "/root/var/www/html/" + endpoint
         if inside("stat", "-Lc", "%d:%i", "--", served).strip() != identity:
             return False
         fds = inside(
             "sh", "-ec", 'for f in /proc/"$1"/fd/*; do readlink "$f" || :; done', "sh", pid
         ).splitlines()
         owned.update(listeners.intersection(fds))
-    return owned == listeners
+    if owned != listeners or not starts:
+        return False
+    # Catch ordinary concurrent replacement/edit and PID reuse during the proof.
+    # No writes, reloads, or requests that mutate learner data are performed.
+    for pid, start in starts.items():
+        if inside("cat", "/proc/" + pid + "/stat").rsplit(")", 1)[1].split()[19] != start:
+            return False
+    return inside(*metadata_args) == metadata
 
 
 def main(container: str, mounted: str, source: str, endpoint: str, expected: str) -> None:

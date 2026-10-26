@@ -17,6 +17,19 @@ produce different bytes and require renewed acceptance.
 
 ## Artifacts and evidence continuity
 
+### Version 0.5.0 rebuild
+
+The version-only `labctl-0.5.0-py3-none-any.whl` rebuild has SHA-256
+`8b1f29f70a0679d25a77a60563288ed792b52e241a25bdf1a0077f3dcf16422b`.
+All 132 wheel members were compared with the final runtime-tested 0.4.2 wheel
+below, normalizing only the distribution metadata directory name. Only the
+version constant, version/readme metadata and RECORD changed; all other bytes
+and member modes are identical. Wheel/sdist metadata and a fresh installed CLI
+report 0.5.0. The complete local gate passed again. Guest lifecycle results are
+carried equivalent-code evidence, **not fresh 0.5.0 guest runs**.
+
+### Runtime-tested implementation artifacts
+
 Final tested `labctl-0.4.2-py3-none-any.whl` SHA-256:
 
 `7e4fd0c3246538453c43671384b46b23f7a5f2d770badbfa3fb042c995eb72d4`

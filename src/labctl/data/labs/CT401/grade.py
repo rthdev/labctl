@@ -78,7 +78,7 @@ def valid(k: str, t: str) -> bool:
             and x["Name"] == "ct401-web"
             and x["State"]["Status"] == "running"
             and x["State"]["ConmonPid"] > 0
-            and x["Config"]["Image"] == "docker.io/library/alpine:3.20"
+            and x["Config"]["Image"] == "registry.access.redhat.com/ubi9/ubi:9.8"
             and x["HostConfig"]["Privileged"] is False
             and ":container_t:" in x["ProcessLabel"]
             and x["HostConfig"]["RestartPolicy"]["Name"] in {"", "no"}

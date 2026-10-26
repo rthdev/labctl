@@ -38,7 +38,7 @@ CHECKS = (
     ),
     (
         "health is served by the recovered container",
-        "/usr/bin/podman exec ct402-api wget -qO- http://127.0.0.1:8080/health",
+        "/usr/bin/podman exec ct402-api curl -fsS --max-time 3 --noproxy '*' http://127.0.0.1:8080/health",
         "probe",
     ),
     ("incident report is exact", "/usr/bin/cat /home/student/ct402-incident-report", "report"),
@@ -84,7 +84,7 @@ def valid(k: str, t: str) -> bool:
             len(d) == 1
             and x["Name"] == "ct402-api"
             and x["State"]["Status"] == "running"
-            and x["Config"]["Image"] == "docker.io/library/alpine:3.20"
+            and x["Config"]["Image"] == "registry.access.redhat.com/ubi9/httpd-24:9.8"
             and "API_PORT=8080" in x["Config"]["Env"]
             and x["HostConfig"]["Privileged"] is False
             and ":container_t:" in x["ProcessLabel"]

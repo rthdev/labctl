@@ -112,7 +112,7 @@ def _assert_lab(tmp_path: Path, lab_id: str, title: str, answers: dict[str, obje
     assert f"grade {lab_id}" in definition.instructions
     assert "loginctl enable-linger student" in setup
     assert "XDG_RUNTIME_DIR" in setup
-    assert "podman pull docker.io/library/alpine:3.20" in setup
+    assert "podman pull registry.access.redhat.com/ubi9/" in setup
     assert "podman run --privileged" not in setup
     subprocess.run(["/usr/bin/bash", "-n", definition.vms[0].setup], check=True)
 
@@ -205,7 +205,7 @@ def test_ct001_one_shot_container(tmp_path: Path) -> None:
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "exited", "ExitCode": 0},
                         "Config": {
-                            "Image": "docker.io/library/alpine:3.20",
+                            "Image": "registry.access.redhat.com/ubi9/ubi:9.8",
                             "Cmd": ["printf", "CT001 container complete\\n"],
                         },
                         "HostConfig": {"Privileged": False},
@@ -231,7 +231,7 @@ def test_ct002_lifecycle_logs_and_exec(tmp_path: Path) -> None:
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running"},
                         "Config": {
-                            "Image": "docker.io/library/alpine:3.20",
+                            "Image": "registry.access.redhat.com/ubi9/ubi:9.8",
                             "Cmd": [
                                 "sh",
                                 "-c",
@@ -261,7 +261,7 @@ def test_ct101_web_port(tmp_path: Path) -> None:
                         "Name": "ct101-web",
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running"},
-                        "Config": {"Image": "docker.io/library/alpine:3.20"},
+                        "Config": {"Image": "registry.access.redhat.com/ubi9/httpd-24:9.8"},
                         "HostConfig": {
                             "Privileged": False,
                             "PortBindings": {
@@ -271,7 +271,7 @@ def test_ct101_web_port(tmp_path: Path) -> None:
                     }
                 ]
             ),
-            "/usr/bin/podman exec ct101-web wget -qO- http://127.0.0.1:8080/index.html": "CT101 rootless web",
+            "/usr/bin/podman exec ct101-web curl -fsS --max-time 3 --noproxy '*' http://127.0.0.1:8080/index.html": "CT101 rootless web",
             "/usr/bin/curl --noproxy '*' --max-time 5 -fsS http://127.0.0.1:8080/index.html": "CT101 rootless web",
         },
     )
@@ -290,7 +290,7 @@ def test_ct102_named_volume(tmp_path: Path) -> None:
                         "Name": "ct102-writer",
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running"},
-                        "Config": {"Image": "docker.io/library/alpine:3.20"},
+                        "Config": {"Image": "registry.access.redhat.com/ubi9/ubi:9.8"},
                         "HostConfig": {"Privileged": False},
                         "Mounts": [
                             {
@@ -367,7 +367,7 @@ def test_ct202_private_network(tmp_path: Path) -> None:
                         "Name": "ct202-api",
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running"},
-                        "Config": {"Image": "docker.io/library/alpine:3.20"},
+                        "Config": {"Image": "registry.access.redhat.com/ubi9/httpd-24:9.8"},
                         "HostConfig": {"Privileged": False},
                         "NetworkSettings": {
                             "Networks": {
@@ -379,7 +379,7 @@ def test_ct202_private_network(tmp_path: Path) -> None:
                         "Name": "ct202-client",
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running"},
-                        "Config": {"Image": "docker.io/library/alpine:3.20"},
+                        "Config": {"Image": "registry.access.redhat.com/ubi9/ubi:9.8"},
                         "HostConfig": {"Privileged": False},
                         "NetworkSettings": {"Networks": {"ct202-private": {"NetworkID": "n" * 64}}},
                     },
@@ -388,7 +388,7 @@ def test_ct202_private_network(tmp_path: Path) -> None:
             "/usr/bin/podman network inspect ct202-private": json.dumps(
                 [{"name": "ct202-private", "internal": True, "id": "n" * 64}]
             ),
-            "/usr/bin/podman exec ct202-client wget -qO- http://api:8080/health": "CT202 private API",
+            "/usr/bin/podman exec ct202-client curl -fsS --max-time 3 --noproxy '*' http://api:8080/health": "CT202 private API",
         },
     )
 
@@ -426,7 +426,7 @@ def test_ct301_pod_and_config(tmp_path: Path) -> None:
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running"},
                         "Config": {
-                            "Image": "docker.io/library/alpine:3.20",
+                            "Image": "registry.access.redhat.com/ubi9/httpd-24:9.8",
                             "Env": ["APP_MODE=training"],
                         },
                         "HostConfig": {"Privileged": False},
@@ -446,12 +446,12 @@ def test_ct301_pod_and_config(tmp_path: Path) -> None:
                         "Pod": "p" * 64,
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running"},
-                        "Config": {"Image": "docker.io/library/alpine:3.20"},
+                        "Config": {"Image": "registry.access.redhat.com/ubi9/ubi:9.8"},
                         "HostConfig": {"Privileged": False},
                     },
                 ]
             ),
-            "/usr/bin/podman exec ct301-checker wget -qO- http://127.0.0.1:8080/config": "mode=training",
+            "/usr/bin/podman exec ct301-checker curl -fsS --max-time 3 --noproxy '*' http://127.0.0.1:8080/config": "mode=training",
             "/usr/bin/podman exec ct301-web cat /etc/ct301/app.conf": "mode=training",
             module("CT301").SERVICE_COMMAND: "connected",
         },
@@ -471,7 +471,10 @@ def test_ct302_effective_hardening(tmp_path: Path) -> None:
                         "Name": "ct302-secure",
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running"},
-                        "Config": {"Image": "docker.io/library/alpine:3.20", "User": "10001:10001"},
+                        "Config": {
+                            "Image": "registry.access.redhat.com/ubi9/ubi:9.8",
+                            "User": "10001:10001",
+                        },
                         "HostConfig": {
                             "Privileged": False,
                             "ReadonlyRootfs": True,
@@ -504,7 +507,7 @@ def test_ct401_quadlet_reboot_persistence(tmp_path: Path) -> None:
                         "Name": "ct401-web",
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running", "ConmonPid": 1234},
-                        "Config": {"Image": "docker.io/library/alpine:3.20"},
+                        "Config": {"Image": "registry.access.redhat.com/ubi9/ubi:9.8"},
                         "HostConfig": {"Privileged": False, "RestartPolicy": {"Name": "no"}},
                     }
                 ]
@@ -534,7 +537,7 @@ def test_ct402_incident_recovery(tmp_path: Path) -> None:
                         "ProcessLabel": "system_u:system_r:container_t:s0:c1,c2",
                         "State": {"Status": "running"},
                         "Config": {
-                            "Image": "docker.io/library/alpine:3.20",
+                            "Image": "registry.access.redhat.com/ubi9/httpd-24:9.8",
                             "Env": ["API_PORT=8080"],
                         },
                         "HostConfig": {
@@ -547,7 +550,7 @@ def test_ct402_incident_recovery(tmp_path: Path) -> None:
                     }
                 ]
             ),
-            "/usr/bin/podman exec ct402-api wget -qO- http://127.0.0.1:8080/health": "CT402 recovered API",
+            "/usr/bin/podman exec ct402-api curl -fsS --max-time 3 --noproxy '*' http://127.0.0.1:8080/health": "CT402 recovered API",
             "/usr/bin/podman exec ct402-api cat /srv/health": "CT402 recovered API",
             module("CT402").SERVICE_COMMAND: "connected",
             "/usr/bin/curl --noproxy '*' --max-time 5 -fsS http://127.0.0.1:8080/health": "CT402 recovered API",

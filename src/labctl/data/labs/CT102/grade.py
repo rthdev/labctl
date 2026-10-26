@@ -50,7 +50,7 @@ def valid(k: str, t: str) -> bool:
             len(d) == 1
             and x["Name"] == "ct102-writer"
             and x["State"]["Status"] == "running"
-            and x["Config"]["Image"] == "docker.io/library/alpine:3.20"
+            and x["Config"]["Image"] == "registry.access.redhat.com/ubi9/ubi:9.8"
             and x["HostConfig"]["Privileged"] is False
             and ":container_t:" in x["ProcessLabel"]
             and len(mounts) == 1

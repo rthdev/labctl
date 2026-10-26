@@ -20,7 +20,7 @@ CHECKS = (
     ("web container and loopback port are exact", "/usr/bin/podman inspect ct101-web", "inspect"),
     (
         "content is served by the inspected container",
-        "/usr/bin/podman exec ct101-web wget -qO- http://127.0.0.1:8080/index.html",
+        "/usr/bin/podman exec ct101-web curl -fsS --max-time 3 --noproxy '*' http://127.0.0.1:8080/index.html",
         "probe",
     ),
 )
@@ -43,7 +43,7 @@ def valid(kind: str, text: str) -> bool:
             len(data) == 1
             and x["Name"] == "ct101-web"
             and x["State"]["Status"] == "running"
-            and x["Config"]["Image"] == "docker.io/library/alpine:3.20"
+            and x["Config"]["Image"] == "registry.access.redhat.com/ubi9/httpd-24:9.8"
             and x["HostConfig"]["Privileged"] is False
             and ":container_t:" in x["ProcessLabel"]
             and binding == {"8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8080"}]}

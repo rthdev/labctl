@@ -3,14 +3,14 @@ id: CT002
 title: Manage container lifecycle and state
 goal: Practice start, stop, logs, and exec operations on a retained rootless container.
 instructions: |
-  Create `ct002-worker` from `docker.io/library/alpine:3.20`. Its initial command
+  Create `ct002-worker` from `registry.access.redhat.com/ubi9/ubi:9.8`. Its initial command
   must be `sh -c "echo 'CT002 worker ready'; exec sleep infinity"`. Stop, inspect,
   and restart it. Leave it running. With `podman exec`, create `/lesson/status`
   containing exactly `lifecycle inspected` followed by a newline.
 
   ## Guided practice
   ```sh
-  podman run --name ct002-worker --pull=never -d docker.io/library/alpine:3.20 sh -c "echo 'CT002 worker ready'; exec sleep infinity"
+  podman run --name ct002-worker --pull=never -d registry.access.redhat.com/ubi9/ubi:9.8 sh -c "echo 'CT002 worker ready'; exec sleep infinity"
   podman logs ct002-worker
   podman stop ct002-worker
   podman ps --all
@@ -25,9 +25,16 @@ instructions: |
   Use rootless Podman as `student`; no sudo, privileged container, host substitute,
   or registry access is allowed. Grading reads inspect JSON, logs, and the file from
   that same named container without modifying it.
+  Fresh creation refreshes the required UBI 9.8 minor tags, even if cached.
+  Resolved image IDs and repository digests are recorded for diagnostics in
+  `/var/lib/labctl/ct-image-provenance`; these are observations, not digest pins.
+  Grading never pulls. A reset reuses the saved definition/setup and rebuilds
+  guest storage, so its saved tags can resolve to newer bytes. Recreate the lab
+  to adopt an updated catalogue; a reset does not migrate old assignments.
+
   ## Common environment and boundaries
   One Rocky Linux 9 VM named `node` is supplied. Work as `student` using rootless
-  Podman and `docker.io/library/alpine:3.20` (preloaded in your image store).
+  Podman and `registry.access.redhat.com/ubi9/ubi:9.8` (preloaded in your image store).
   Use `--pull=never` for offline runs. Package/image acquisition during setup needs
   Internet; the upstream image tag is mutable, not digest-pinned. No host container
   engine is used. Keep SELinux confinement intact; never use privileged containers,

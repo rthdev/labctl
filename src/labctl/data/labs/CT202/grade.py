@@ -20,7 +20,7 @@ CHECKS = (
     ("network is internal", "/usr/bin/podman network inspect ct202-private", "network"),
     (
         "client reaches API by container DNS",
-        "/usr/bin/podman exec ct202-client wget -qO- http://api:8080/health",
+        "/usr/bin/podman exec ct202-client curl -fsS --max-time 3 --noproxy '*' http://api:8080/health",
         "probe",
     ),
 )
@@ -45,7 +45,12 @@ def valid(k: str, t: str) -> bool:
             len(d) == 2
             and all(
                 x["State"]["Status"] == "running"
-                and x["Config"]["Image"] == "docker.io/library/alpine:3.20"
+                and x["Config"]["Image"]
+                == (
+                    "registry.access.redhat.com/ubi9/httpd-24:9.8"
+                    if x is api
+                    else "registry.access.redhat.com/ubi9/ubi:9.8"
+                )
                 and x["HostConfig"]["Privileged"] is False
                 and ":container_t:" in x["ProcessLabel"]
                 and not x["HostConfig"].get("PortBindings")

@@ -27,7 +27,22 @@ if name == 'dnf':
         print('curl-minimal conflicts with installed curl', file=sys.stderr)
         raise SystemExit(1)
     raise SystemExit(0)
+if name == 'curl':
+    raise SystemExit(0 if os.environ.get('CT_FAULT') == 'external-healthy' else 7)
+if name == 'sleep':
+    raise SystemExit(0)
 if name in ('loginctl', 'systemctl', 'chown'):
+    if os.environ.get('CT_LAB') == 'CT302':
+        delegation = root / 'systemd/user@1000.service.d/50-labctl-cpu.conf'
+        loaded = root / 'delegation-loaded'
+        if name == 'systemctl' and args == ['daemon-reload']:
+            assert delegation.read_text() == '[Service]\\nDelegate=cpu memory pids\\n'
+            loaded.touch()
+        if name == 'loginctl' or (name == 'systemctl' and args[0] == 'start'):
+            assert loaded.exists(), 'CPU delegation must load before starting the user manager'
+        assert not (name == 'systemctl' and args[0] in ('restart', 'stop')), (
+            'Repeated setup must not interrupt an existing user manager'
+        )
     raise SystemExit(0)
 if name == 'id':
     print('1000')
@@ -75,7 +90,9 @@ elif name == 'podman':
     marker = root / 'image'
     if args[:2] == ['image', 'exists']:
         raise SystemExit(0 if marker.exists() else 1)
-    if args[0] == 'pull':
+    if args[:2] == ['image', 'inspect']:
+        print('sha256:fixture ["registry.example/image@sha256:fixture"]')
+    elif args[0] == 'pull':
         assert os.environ['HOME'] == str(root / 'student')
         assert os.environ['XDG_RUNTIME_DIR'] == str(root / 'run' / '1000')
         marker.touch()
@@ -88,6 +105,11 @@ elif name == 'podman':
         print(json.dumps([{'Name': 'ct402-data', 'CreatedAt': 'fixture-original'}]))
     elif args[:2] == ['container', 'exists']:
         raise SystemExit(0 if (root / 'container').exists() else 1)
+    elif args[0] == 'exec':
+        if os.environ.get('CT_FAULT') == 'internal-broken':
+            raise SystemExit(1)
+        assert 'http://127.0.0.1:9090/health' in args
+        print('CT402 recovered API')
     elif args[0] == 'run':
         assert '--pull=never' in args
         if '--name' in args:
@@ -99,8 +121,14 @@ else:
 """
 
 
-@pytest.mark.parametrize("lab_id", catalog.CT_IDS)
-def test_setup_twice_preserves_work_and_preloads_once(tmp_path: Path, lab_id: str) -> None:
+@pytest.mark.parametrize(
+    ("lab_id", "fault"),
+    [(lab_id, "none") for lab_id in catalog.CT_IDS]
+    + [("CT402", "internal-broken"), ("CT402", "external-healthy")],
+)
+def test_setup_twice_preserves_work_and_preloads_once(
+    tmp_path: Path, lab_id: str, fault: str
+) -> None:
     bindir = tmp_path / "bin"
     bindir.mkdir()
     for command in (
@@ -113,6 +141,8 @@ def test_setup_twice_preserves_work_and_preloads_once(tmp_path: Path, lab_id: st
         "runuser",
         "usermod",
         "podman",
+        "curl",
+        "sleep",
     ):
         shim = bindir / command
         shim.write_text(SHIM)
@@ -120,11 +150,13 @@ def test_setup_twice_preserves_work_and_preloads_once(tmp_path: Path, lab_id: st
     (tmp_path / "student").mkdir()
     for filename in ("subuid", "subgid"):
         (tmp_path / filename).write_text("other:100000:65536\n")
+    (tmp_path / "image").touch()  # Cached tags must still refresh on fresh setup.
     source = (catalog.LABS / lab_id / "setup.sh").read_text()
     for original, local in {
         "/home/student": str(tmp_path / "student"),
         "/run/user": str(tmp_path / "run"),
         "/var/lib/labctl": str(tmp_path / "state"),
+        "/etc/systemd/system": str(tmp_path / "systemd"),
         "/etc/subuid": str(tmp_path / "subuid"),
         "/etc/subgid": str(tmp_path / "subgid"),
         "/usr/sbin/usermod": str(bindir / "usermod"),
@@ -133,11 +165,22 @@ def test_setup_twice_preserves_work_and_preloads_once(tmp_path: Path, lab_id: st
         source = source.replace(original, local)
     script = tmp_path / "setup.sh"
     script.write_text(source)
-    env = {**os.environ, "PATH": f"{bindir}:/usr/bin:/bin", "CT_SANDBOX": str(tmp_path)}
+    env = {
+        **os.environ,
+        "PATH": f"{bindir}:/usr/bin:/bin",
+        "CT_SANDBOX": str(tmp_path),
+        "CT_FAULT": fault,
+        "CT_LAB": lab_id,
+    }
     for iteration in range(2):
         result = subprocess.run(
             ["/usr/bin/bash", script], env=env, capture_output=True, text=True, check=False
         )
+        if fault != "none":
+            assert result.returncode != 0
+            assert not (tmp_path / "state/ct402-initialized").exists()
+            assert not (tmp_path / "state/ct402-fault-baseline").exists()
+            return
         assert result.returncode == 0, result.stderr
         guide = tmp_path / "student/LAB.md"
         if iteration == 0:
@@ -149,7 +192,16 @@ def test_setup_twice_preserves_work_and_preloads_once(tmp_path: Path, lab_id: st
     installs = [call for call in calls if call[:3] == ["dnf", "-y", "install"]]
     assert len(installs) == 2
     assert all("curl" in call and "curl-minimal" not in call for call in installs)
-    assert sum(call[:2] == ["podman", "pull"] for call in calls) == 1
+    assert sum(call[:2] == ["podman", "pull"] for call in calls) == (
+        2 if lab_id in {"CT202", "CT301", "CT402"} else 1
+    )
+    assert "sha256:fixture" in (tmp_path / "state/ct-image-provenance").read_text()
     assert sum(call[0] == "usermod" for call in calls) == 2
     runs = [call for call in calls if call[:2] == ["podman", "run"]]
     assert len(runs) == (2 if lab_id == "CT402" else 0)
+    if lab_id == "CT402":
+        assert any(call[:3] == ["podman", "exec", "ct402-api"] for call in calls)
+        assert any(call[0] == "curl" for call in calls)
+        assert "/usr/sbin/httpd" in runs[-1]
+        assert "registry.access.redhat.com/ubi9/ubi:9.8" in runs[0]
+        assert "registry.access.redhat.com/ubi9/httpd-24:9.8" in runs[1]

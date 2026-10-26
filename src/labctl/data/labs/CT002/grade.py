@@ -45,7 +45,7 @@ def valid(kind: str, text: str) -> bool:
             len(data) == 1
             and item["Name"] == "ct002-worker"
             and item["State"]["Status"] == "running"
-            and item["Config"]["Image"] == "docker.io/library/alpine:3.20"
+            and item["Config"]["Image"] == "registry.access.redhat.com/ubi9/ubi:9.8"
             and item["Config"]["Cmd"]
             == ["sh", "-c", "echo 'CT002 worker ready'; exec sleep infinity"]
             and item["HostConfig"]["Privileged"] is False

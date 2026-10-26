@@ -54,7 +54,7 @@ def valid(k: str, t: str) -> bool:
             len(d) == 1
             and x["Name"] == "ct302-secure"
             and x["State"]["Status"] == "running"
-            and x["Config"]["Image"] == "docker.io/library/alpine:3.20"
+            and x["Config"]["Image"] == "registry.access.redhat.com/ubi9/ubi:9.8"
             and x["Config"]["User"] == "10001:10001"
             and h["Privileged"] is False
             and h["ReadonlyRootfs"] is True
@@ -64,8 +64,10 @@ def valid(k: str, t: str) -> bool:
                 or (h.get("CpuPeriod", 0) > 0 and h.get("CpuQuota", -1) * 2 == h["CpuPeriod"])
             )
             and h["PidsLimit"] == 64
-            and x["EffectiveCaps"] == []
-            and x["BoundingCaps"] == []
+            # Podman versions serialize an empty capability set as [] or null.
+            # Indexing is intentional: omitted fields must still fail closed.
+            and (x["EffectiveCaps"] is None or x["EffectiveCaps"] == [])
+            and (x["BoundingCaps"] is None or x["BoundingCaps"] == [])
             and "no-new-privileges" in h["SecurityOpt"]
             and ":container_t:" in x["ProcessLabel"]
         )

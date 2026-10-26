@@ -57,7 +57,7 @@ CHECKS = (
     ("stale cache was removed", "/usr/bin/test ! -e /var/tmp/lx202-cache/stale.tmp", ""),
     (
         "maintenance wrote durable evidence",
-        "/usr/bin/cat /var/log/lx202-maintenance.log",
+        "/usr/bin/sudo -n /usr/bin/cat /var/log/lx202-maintenance.log",
         "maintenance complete",
     ),
 )

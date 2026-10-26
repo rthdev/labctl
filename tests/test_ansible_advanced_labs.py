@@ -191,7 +191,7 @@ def _an401_answers() -> dict[str, object]:
         {
             "/usr/bin/systemctl is-enabled httpd": "enabled\n",
             "/usr/bin/systemctl is-active httpd": "active\n",
-            "/usr/bin/stat -c '%U:%G %a' /etc/an401/app.conf": "root:apache 640\n",
+            "/usr/bin/sudo -n /usr/bin/stat -c '%U:%G %a' /etc/an401/app.conf": "root:apache 640\n",
             "/usr/bin/sudo -n /usr/bin/base64 -w0 -- /etc/an401/app.conf": (
                 "ZW52aXJvbm1lbnQ9cHJvZHVjdGlvbgo="
             ),
@@ -253,10 +253,10 @@ def test_an401_rejects_failed_or_noop_automation(tmp_path: Path, failure: str) -
     [
         _recap(("target",), changed=1),
         _recap(("target",), failed=1),
-        _recap(("target", "extra")),
+        _recap(("extra",)),
         "PLAY RECAP ****\n",
     ],
-    ids=["changed", "failed", "extra-host", "missing"],
+    ids=["changed", "failed", "missing-target", "missing"],
 )
 def test_an401_rejects_non_idempotent_or_invalid_second_recap(tmp_path: Path, recap: str) -> None:
     answers = _an401_answers()
@@ -289,8 +289,8 @@ def _an402_answers() -> dict[str, object]:
                 "vYXBpLyBodHRwOi8vMTI3LjAuMC4xOjgwODAvCg=="
             ),
             "/usr/bin/systemctl is-enabled firewalld": "enabled\n",
-            "/usr/bin/firewall-cmd --quiet --query-service=http": "",
-            "/usr/bin/firewall-cmd --quiet --permanent --query-service=http": "",
+            "/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --query-service=http": "",
+            "/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --permanent --query-service=http": "",
             "/usr/sbin/getenforce": "Enforcing\n",
             "/usr/sbin/getsebool httpd_can_network_connect": ("httpd_can_network_connect --> on\n"),
             "/usr/bin/curl -fsS http://127.0.0.1/api/health": "ok\n",
@@ -344,7 +344,7 @@ def test_an402_grades_every_target_and_controller_summary_without_inspecting_pro
     assert all(str(tmp_path / "management-identity") not in command for command in commands)
 
 
-@pytest.mark.parametrize("failure", ["playbook", "no-op", "idempotence", "extra-host"])
+@pytest.mark.parametrize("failure", ["playbook", "no-op", "idempotence", "missing-host"])
 def test_an402_rejects_failed_noop_or_non_idempotent_automation(
     tmp_path: Path, failure: str
 ) -> None:
@@ -371,7 +371,7 @@ def test_an402_rejects_failed_noop_or_non_idempotent_automation(
     else:
         answers[playbook] = [
             _recap(("web1", "web2", "web3"), changed=4),
-            _recap(("web1", "web2", "web3", "extra")),
+            _recap(("web1", "web2", "extra")),
         ]
 
     result, _calls = _run_grader(tmp_path, "AN402", ("controller", "web1", "web2", "web3"), answers)
@@ -398,9 +398,9 @@ def test_an402_requires_stale_summary_removal_before_running_playbook(tmp_path: 
     ("command", "description"),
     [
         ("/usr/bin/systemctl is-enabled firewalld", "firewall service is enabled"),
-        ("/usr/bin/firewall-cmd --quiet --query-service=http", "runtime firewall"),
+        ("/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --query-service=http", "runtime firewall"),
         (
-            "/usr/bin/firewall-cmd --quiet --permanent --query-service=http",
+            "/usr/bin/sudo -n /usr/bin/firewall-cmd --quiet --permanent --query-service=http",
             "permanent firewall",
         ),
     ],

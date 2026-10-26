@@ -33,7 +33,7 @@ CHECKS = {
     "web service is enabled": ("/usr/bin/systemctl is-enabled httpd", "enabled"),
     "web service is active": ("/usr/bin/systemctl is-active httpd", "active"),
     "application configuration ownership and mode are secure": (
-        "/usr/bin/stat -c '%U:%G %a' /etc/an401/app.conf",
+        "/usr/bin/sudo -n /usr/bin/stat -c '%U:%G %a' /etc/an401/app.conf",
         "root:apache 640",
     ),
     "application configuration is production-ready": (
@@ -47,11 +47,6 @@ CHECKS = {
 }
 _USER = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 _PUBLIC_KEY = re.compile(r"^ssh-ed25519 [A-Za-z0-9+/]+={0,3}(?: [A-Za-z0-9@._-]+)?$")
-_RECAP = re.compile(
-    r"^(?P<host>[^\s:]+)\s*:\s*.*?changed=(?P<changed>\d+)\s+"
-    r"unreachable=(?P<unreachable>\d+)\s+failed=(?P<failed>\d+)\b",
-    re.MULTILINE,
-)
 
 
 def _host(context: dict[str, Any], name: str) -> dict[str, str]:
@@ -149,13 +144,29 @@ def _install_key_command(public_key: str) -> str:
 
 
 def _idempotent_recap(output: str, required_hosts: set[str]) -> bool:
-    rows = {
-        match.group("host"): tuple(
-            int(match.group(field)) for field in ("changed", "unreachable", "failed")
-        )
-        for match in _RECAP.finditer(output)
-    }
-    return set(rows) == required_hosts and all(values == (0, 0, 0) for values in rows.values())
+    markers = list(re.finditer(r"(?m)^PLAY RECAP \*+[ \t]*$", output))
+    if not markers:
+        return False
+    recap = output[markers[-1].end() :]
+    hosts: set[str] = set()
+    for line in recap.splitlines():
+        if not line.strip():
+            continue
+        match = re.fullmatch(r"\s*(\S+)\s*:\s+(.+?)\s*", line)
+        if not match or match[1] in hosts:
+            return False
+        hosts.add(match[1])
+        tokens = match[2].split()
+        if any(not re.fullmatch(r"[a-z_]+=[0-9]+", token) for token in tokens):
+            return False
+        stats = dict(token.split("=", 1) for token in tokens)
+        if len(stats) != len(tokens) or not {"changed", "failed", "unreachable"} <= stats.keys():
+            return False
+        if any(stats[field] != "0" for field in ("failed", "unreachable")):
+            return False
+        if stats["changed"] != "0":
+            return False
+    return required_hosts <= hosts
 
 
 def main() -> int:

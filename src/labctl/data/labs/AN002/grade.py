@@ -30,13 +30,13 @@ CHECKS = {
     "automation group exists": ("/usr/bin/getent group automation", None),
     "deploy belongs to automation": ("/usr/bin/id -nG deploy", "automation"),
     "auditor belongs to automation": ("/usr/bin/id -nG auditor", "automation"),
-    "shared path is a directory": ("/usr/bin/test -d -- /srv/automation", None),
+    "shared path is a directory": ("/usr/bin/test -d /srv/automation", None),
     "shared directory has setgid ownership and mode": (
         "/usr/bin/stat -c '%U:%G %a' /srv/automation",
         "root:automation 2770",
     ),
     "deploy authorized_keys ownership and mode": (
-        "/usr/bin/stat -c '%U:%G %a' /home/deploy/.ssh/authorized_keys",
+        "/usr/bin/sudo -n /usr/bin/stat -c '%U:%G %a' /home/deploy/.ssh/authorized_keys",
         "deploy:deploy 600",
     ),
 }
@@ -212,7 +212,9 @@ def main() -> int:
         results.append((description, passed))
 
     expected_key = _remote(ssh, controller, DEPLOY_PUBLIC_KEY_COMMAND)
-    authorized = _remote(ssh, target, "/usr/bin/base64 -w0 -- /home/deploy/.ssh/authorized_keys")
+    authorized = _remote(
+        ssh, target, "/usr/bin/sudo -n /usr/bin/base64 -w0 -- /home/deploy/.ssh/authorized_keys"
+    )
     expected_authorized = base64.b64encode(
         (expected_key.stdout.strip() + "\n").encode("ascii")
     ).decode("ascii")

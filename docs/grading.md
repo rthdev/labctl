@@ -1,6 +1,12 @@
 # Grading Protocol
 
-The immutable instance snapshot supplies the host-side grader. `labctl lab grade ID`
+The immutable instance snapshot supplies the host-side grader. Updating labctl's
+bundled catalogue does **not** replace graders in existing instances, and neither
+reset mode adopts a newer catalogue grader. To use corrected bundled graders,
+back up learner projects and recreate the affected lab after updating labctl.
+Do not edit saved snapshots or rerun setup scripts over learner work.
+
+`labctl lab grade ID`
 and its shorthand `labctl grade ID` default to **current-state** mode: no disk reset,
 no implicit VM startup, and no silent drift repair. Start stopped VMs explicitly
 with `labctl lab start ID` first. In Ansible labs the existing grader still executes

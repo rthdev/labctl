@@ -1,0 +1,52 @@
+schema_version: 1
+id: LX310
+title: Boot-path and persistent filesystem recovery
+goal: Recover a staged boot failure through the console without losing the supplied filesystem.
+instructions: |
+  ## Starting state
+  This standalone Rocky 10 node is reachable after provisioning. Setup has staged
+  two faults for the next boot: a rescue-target kernel argument and an invalid
+  UUID for /srv/lx310 in /etc/fstab. A 256 MiB ext4 image is supplied at
+  /var/lib/labctl-media/lx310.img. Its ledger must be preserved. The root account
+  is locked; the student management account is unchanged.
+
+  ## Required outcomes
+  Open `labctl console LX310 node` on the host, then reboot this guest to observe
+  the failure. Recover through the console, using early boot recovery if needed.
+  Set a new unlocked root password without putting it in any report or command
+  transcript. Remove systemd.unit overrides from the persistent GRUB defaults,
+  every installed BLS entry and the running kernel command line. Retain all other
+  necessary platform kernel parameters. Restore multi-user.target as the normal
+  default. Repair fstab so the supplied image mounts read-write as ext4 at exactly
+  /srv/lx310 on every normal boot (loop, without noauto or nofail). Do not replace
+  the filesystem. Preserve ledger.txt with exactly `LX310 retained ledger`.
+  Keep SELinux enforcing now and persistently; restore /etc/shadow to its policy
+  label after password recovery and consume any /.autorelabel marker by reboot.
+  Reboot normally after the repair. The node must reach multi-user.target with
+  the required mount and no manual start or mount command after that boot.
+
+  ## Forbidden shortcuts
+  Do not delete the required fstab mount, use nofail/noauto, replace the supplied
+  image or ledger, disable SELinux, remove BLS entries, weaken management SSH, or
+  edit protected baseline records. An SSH repair before observing the failed boot
+  is not console-recovery acceptance. The automated grader checks final state;
+  console provenance requires separate instructor observation.
+
+  ## Grading
+  Run `labctl grade LX310` on the host. Each check reports PASS or FAIL. Root-capable
+  learners can alter guest evidence; this is educational validation, not an
+  anti-tamper boundary. Selected EX200/EX342 skills, not complete exam coverage.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:10
+    hostname: lx310.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

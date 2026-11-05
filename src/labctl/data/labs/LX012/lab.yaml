@@ -1,0 +1,44 @@
+schema_version: 1
+id: LX012
+title: Permissions, links, and compressed archives
+goal: Protect a file, create both link types, and preserve it in a gzip archive.
+instructions: |
+  Work on node as student. Use sudo only for administration; level 0 tasks need no sudo.
+
+  ## Starting state
+
+  The student home is writable. /home/student/lx012 is absent; no objective is prepared.
+
+  ## Required outcomes
+
+  Create `/home/student/lx012` and complete all outcomes:
+  1. Create regular file `message.txt` containing exactly `Rocky archive practice` and a newline, owned by student:student with mode `0640`.
+  2. Create `message.hard` as a hard link to that file (not a symbolic link).
+  3. Create `current` as a symbolic link resolving to that exact file.
+  4. Create gzip-compressed tar archive `backup.tar.gz` containing exactly one regular entry named `message.txt` (no directory prefix). Its bytes must match the message and its stored mode must be `0640`.
+  Use chmod, ln and tar. Keep the original and both links present.
+
+  ## Persistence and forbidden shortcuts
+
+  Keep all required files until grading. No reboot is required.
+  Forbidden shortcuts: do not alter source fixtures, grader assets, or management access.
+  Do not replace required regular files with symlinks or fabricate command output.
+  This is an outcome-based practice lab, not a root-tamper security boundary.
+
+  ## Grading
+
+  Run `labctl grade LX012` on the host, not in the VM. Each check reports PASS or FAIL.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:10
+    hostname: lx012.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

@@ -1,5 +1,9 @@
 # Progressive Linux labs
 
+The additional [Rocky Linux 10 curriculum](rocky10-linux-curriculum.md) contains
+15 independent English labs, `LX010` through `LX412`, with three per level.
+The Rocky Linux 9 track below is retained unchanged.
+
 The bundled Rocky Linux 9 track develops operational skills through outcome-graded
 single-node exercises. Every lab writes its detailed brief to
 `/home/student/LAB.md`; use `labctl console LAB_ID node` when a task requires

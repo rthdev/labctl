@@ -110,11 +110,11 @@ REQUIRED = {
 
 
 def test_complete_catalogue() -> None:
-    assert len(DEFINITIONS) == 30
+    assert len(DEFINITIONS) == 45
     assert {
         family: sum(p.parent.name.startswith(family) for p in DEFINITIONS)
         for family in ("AN", "CT", "LX")
-    } == {"AN": 10, "CT": 10, "LX": 10}
+    } == {"AN": 10, "CT": 10, "LX": 25}
 
 
 @pytest.mark.parametrize("path", DEFINITIONS, ids=lambda p: p.parent.name)

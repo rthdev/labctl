@@ -1,0 +1,44 @@
+schema_version: 1
+id: LX011
+title: Text filtering and shell pipelines
+goal: Transform a supplied event log into precise text reports with pipelines.
+instructions: |
+  Work on node as student. Use sudo only for administration; level 0 tasks need no sudo.
+
+  ## Starting state
+
+  The source /srv/lx011/events.log has six newline-terminated records: INFO boot, ERROR disk, WARN load, ERROR network, INFO ready, WARN memory. /home/student/lx011 does not exist.
+
+  ## Required outcomes
+
+  Create `/home/student/lx011` and produce these regular files, each with a final newline:
+  1. `errors.txt`: the two complete ERROR lines in source order (`ERROR disk`, then `ERROR network`).
+  2. `levels.txt`: unique first fields, sorted in C locale: `ERROR`, `INFO`, `WARN`, one per line.
+  3. `counts.txt`: exactly `ERROR 2`, `INFO 2`, `WARN 2`, one per line in that order.
+  4. `numbered.txt`: the six original lines prefixed with `1:`, `2:`, through `6:` with no extra spaces.
+  Practice grep, cut, sort, uniq, awk, pipes and redirection. The reports, not a specific command sequence, are graded.
+
+  ## Persistence and forbidden shortcuts
+
+  Keep all required files until grading. No reboot is required.
+  Forbidden shortcuts: do not alter source fixtures, grader assets, or management access.
+  Do not replace required regular files with symlinks or fabricate command output.
+  This is an outcome-based practice lab, not a root-tamper security boundary.
+
+  ## Grading
+
+  Run `labctl grade LX011` on the host, not in the VM. Each check reports PASS or FAIL.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:10
+    hostname: lx011.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

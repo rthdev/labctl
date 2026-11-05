@@ -1,0 +1,51 @@
+schema_version: 1
+id: LX312
+title: Application failure and memory diagnosis
+goal: Resolve layered configuration, access and cgroup faults without bypassing workload limits.
+instructions: |
+  ## Starting state
+  One Rocky 10 node contains the fixed Python workload `/opt/lx312/app.py`, a
+  48 MiB dataset `/srv/lx312/dataset`, and a disabled failing `lx312-app.service`.
+  A wrong DATA_FILE environment path, unreadable dataset, and too-small 16 MiB
+  MemoryMax are independent faults: repairing one may expose the next. The program
+  must hold the entire dataset in memory and serve its size and SHA-256 on the
+  loopback-only endpoint `http://127.0.0.1:8312/health`.
+  ## Required outcomes
+  Use journalctl, systemctl show, /proc, free/ps, and (where useful) strace to
+  separate missing-path, DAC-permission and memory-limit failures. Compare cgroup
+  MemoryCurrent with process memory; no arbitrary CPU benchmark is required.
+  Repair configuration, not program logic. Run the service as `lx312` with
+  NoNewPrivileges=yes, MemorySwapMax=0 and MemoryMax between 96 and 192 MiB.
+  Dataset ownership must be root:lx312, mode 0640, readable but not writable by
+  the service account. Keep source and dataset bytes unchanged. Enable the service
+  and reboot. It must return `bytes=50331648 sha256=HEX`, where HEX is SHA-256 of
+  the supplied dataset, from the actual service MainPID owning port 8312. Steady
+  MemoryCurrent must be between 48 and 128 MiB. Keep SELinux enforcing.
+  The grader validates source/data checksums, process identity, socket ownership,
+  effective cgroup settings, memory use and endpoint response; it never starts the
+  service. Allow startup to settle before grading.
+  ## Forbidden shortcuts
+  Do not alter/truncate the dataset, change the supplied Python program, run as
+  root, disable SELinux, remove cgroup limits, use unlimited memory, add swap,
+  forge a health listener, or change baseline records or management networking.
+
+  ## Grading
+  Run `labctl grade LX312` on the host, not inside the VM. Checks are educational
+  outcome checks, not tamper-proof against root. Baseline checks preserve safety;
+  learner-objective checks must fail on untouched setup. Reboot only this guest.
+  This standalone exercise practices selected administration/troubleshooting
+  skills, not complete official exam coverage.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:10
+    hostname: lx312.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

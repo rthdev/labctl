@@ -1,0 +1,44 @@
+schema_version: 1
+id: LX210
+title: Persistent LVM records volume
+goal: Build and validate a reboot-persistent LVM filesystem on supplied media.
+instructions: |
+  ## Starting state
+  One Rocky 10 node has a blank 768 MiB image at `/var/lib/labctl-media/lx210.img`.
+  The enabled `lx210-attach.service` is a baseline helper: it attaches exactly this
+  image and activates its VG before local mounts. No PV, VG, LV or mount exists.
+  ## Required outcomes
+  Create a single-PV VG `vg210` on that loop device and an LV `records` of 384–512
+  MiB. Use XFS, mounted read-write at `/srv/lx210`. Persist this exact LV in
+  `/etc/fstab` (UUID or device path accepted), with exactly one entry for this
+  mountpoint, FSTYPE `xfs`, and no `ro`, `noauto` or `nofail` options.
+  Create `manifest` inside the mount
+  containing exactly `LX210 persistent records`, owned student:student, mode 0640.
+  Reboot and confirm the filesystem and data return without manually attaching
+  media, activating LVM or mounting. Use explicit LVM `--devices` when needed on
+  EL10; the supplied attachment helper already uses it.
+  ## Forbidden shortcuts
+  Do not replace the image, use root-disk storage, another PV, bind mounts, or
+  change the helper, baseline boot record or management networking. Do not remove
+  persistence requirements or weaken SELinux. The helper is not a learner task.
+
+  ## Grading
+  Run `labctl grade LX210` on the host, not inside the VM. Checks are educational
+  outcome checks, not tamper-proof against root. Baseline checks preserve safety;
+  learner-objective checks must fail on untouched setup. Reboot only this guest.
+  This standalone exercise practices selected administration/troubleshooting
+  skills, not complete official exam coverage.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:10
+    hostname: lx210.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

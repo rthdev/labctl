@@ -1,0 +1,61 @@
+schema_version: 1
+id: LX411
+title: Encrypted ledger recovery across storage layers
+goal: Recover preserved ledger data through an encrypted LVM stack and restore boot-time application dependencies.
+instructions: |
+  ## Incident and topology
+  One Rocky Linux 10 node has an isolated 768 MiB sparse image at
+  `/var/lib/lx411/ledger.img`. Its loop device contains LUKS2, then the PV for
+  `lx411-vg`, then the ext4 LV `ledger`. Do not operate on any other VG or disk.
+  A key rotation, access-mode change and application deployment collided.
+  The supplied units are already enabled, but starting them alone cannot fix
+  the incident. Management SSH and the root filesystem are intentionally intact.
+
+  ## Required outcomes
+  Recover the EXISTING LUKS container, VG, LV and ledger, without formatting,
+  recreating or copying the data to another filesystem. The original recovery
+  key is `/root/lx411-recovery.key`; keep all keys root-owned mode 0600.
+  Diagnose `/etc/lx411-storage.conf`, `/usr/local/sbin/lx411-attach`,
+  `lx411-stack.service`, `srv-lx411.mount`, and `lx411-api.service`.
+  Repair durable key selection and LV writability. Mount that ext4 LV read-write
+  at `/srv/lx411` and retain the supplied boot dependency graph. The attach unit
+  must reuse the loop association for the image, unlock mapper `lx411-crypt`,
+  and activate only the lab VG; do not create broad device-discovery overrides.
+  Preserve `/srv/lx411/ledger.csv` exactly. Its original checksum and LUKS UUID
+  are protected under `/var/lib/lx411`. Correct the API's persistent data path
+  in `/etc/lx411-api.conf`; leave the supplied API program unchanged.
+  `http://127.0.0.1:8411/ledger.csv` must serve the mounted original ledger.
+  The API must also be able to create its bounded `service-write-test` file on
+  the recovered mount on each grading request (a fresh bounded receipt), proving
+  that a stale write marker or read-only workaround is insufficient.
+  All three units must be enabled and active following a reboot after repairs.
+  Grading verifies the backing image, LUKS UUID, PV/VG/LV chain, mounted device,
+  writable mount, preserved data and live endpoint. Reboot only after checking
+  the dependency chain. Failed lab units must not force emergency boot.
+  Do not change management SSH, protected baseline data, application code,
+  SELinux enforcement, or use an unencrypted replacement volume.
+
+  ## EX342 alignment and evidence
+  Practices encrypted-storage and LVM recovery, filesystem mounting and
+  boot-time service dependencies. Inspect `cryptsetup status`, `lvs`, `pvs`,
+  `findmnt`, `lsblk`, `systemctl show` and the three unit journals; separate
+  unlock, activation, mount and application failures. This is not a damaged
+  LUKS-header or filesystem-corruption exercise. No report text is graded.
+  Grading briefly creates and removes a random `labctl-probe-*` file in the
+  required document root to reject copied/static substitutes. Original data is
+  never rewritten; retain normal static-file serving for this probe.
+  Run `labctl grade LX411` on the host, not inside the VM.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 14GiB
+    image: rocky:10
+    hostname: lx411.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

@@ -1,0 +1,44 @@
+schema_version: 1
+id: LX111
+title: Packages, service lifecycle, and journal evidence
+goal: Install a package and activate a supplied service while collecting its journal output.
+instructions: |
+  Work on node as student. Use sudo only for administration; level 0 tasks need no sudo.
+
+  ## Starting state
+
+  The tree package is absent. A supplied lx111-ready.service oneshot unit is disabled and inactive. It prints LX111 service ready to its journal and remains active after successful execution. Provisioning requires enabled Rocky repositories and Internet or mirror access.
+
+  ## Required outcomes
+
+  1. Install RPM package `tree` from a configured Rocky repository (do not fake the executable or RPM database).
+  2. Enable `lx111-ready.service` for multi-user boot.
+  3. Start the supplied unit; it must be active with successful ExecMainStatus. Do not change the supplied unit or override its command.
+  4. Verify the unit has emitted the exact journal message `LX111 service ready` in the current boot.
+  5. Create regular file `/home/student/lx111-journal.txt` containing exactly that one message and a newline, using journalctl output and text filtering.
+  Enablement must persist; no reboot is required. Journal persistence across reboot is not required. Do not modify management services.
+
+  ## Persistence and forbidden shortcuts
+
+  Keep all required files until grading. No reboot is required.
+  Forbidden shortcuts: do not alter source fixtures, grader assets, or management access.
+  Do not replace required regular files with symlinks or fabricate command output.
+  This is an outcome-based practice lab, not a root-tamper security boundary.
+
+  ## Grading
+
+  Run `labctl grade LX111` on the host, not in the VM. Each check reports PASS or FAIL.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:10
+    hostname: lx111.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

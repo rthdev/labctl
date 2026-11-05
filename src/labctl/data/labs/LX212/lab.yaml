@@ -1,0 +1,58 @@
+schema_version: 1
+id: LX212
+title: Repair a scheduled shell report
+goal: Diagnose a broken service and automate fresh event summaries with a timer.
+instructions: |
+  ## Starting state
+  One Rocky 10 node has events in `/var/lib/lx212/events`, a stub executable
+  `/usr/local/sbin/lx212-report`, a service with a misspelled executable path and a
+  disabled `lx212-report.timer`. No report exists. Use systemctl status and journal
+  messages to distinguish a failed executable from a faulty script.
+  ## Required outcomes
+  Implement the executable accepting INPUT OUTPUT as its two arguments. Count the
+  first whitespace-delimited field, accepting ERROR, WARN and INFO; ignore other
+  records. Atomically replace OUTPUT with exactly four newline-terminated lines:
+  `ERROR=N`, `WARN=N`, `INFO=N`, `SHA256=HEX` in that order. HEX is SHA-256 of the
+  complete input bytes; counts can be zero. Output must be root:root mode 0640.
+  Repair `lx212-report.service` to process `/var/lib/lx212/events` into
+  `/var/lib/lx212/report`. Enable the timer, keeping its service association and
+  10-second interval (1-second accuracy). Keep the effective `OnBootSec=10s` and
+  `OnUnitActiveSec=10s` schedules, `AccuracySec=1s`, no additional monotonic or
+  calendar schedules, and no randomized delay. The grader reads effective systemd
+  properties; equivalent duration spellings and drop-ins are accepted, not exact
+  unit-file text. Reboot and verify unattended operation.
+  The grader invokes the executable with two fresh temporary inputs. For each
+  update it retains an open descriptor to the previous output: the old bytes must
+  remain unchanged and OUTPUT must name a different inode containing the complete
+  new report, root:root mode 0640. Any implementation meeting these outcomes is
+  accepted; temporary-file-and-rename implementations are suitable. This is a
+  bounded replacement check, not proof of crash durability or every concurrent
+  interleaving. It then removes the normal report and waits up to 30 seconds for
+  the timer to regenerate it.
+  It does not start your service or timer. Do not run concurrent manual jobs while
+  grading. The original events file must remain unchanged.
+  ## Forbidden shortcuts
+  Do not hard-code sample counts or digests, keep stale output, replace the timer
+  with cron or a background loop, remove input records, alter baseline boot evidence,
+  or disable security services. Do not modify management networking.
+
+  ## Grading
+  Run `labctl grade LX212` on the host, not inside the VM. Checks are educational
+  outcome checks, not tamper-proof against root. Baseline checks preserve safety;
+  learner-objective checks must fail on untouched setup. Reboot only this guest.
+  This standalone exercise practices selected administration/troubleshooting
+  skills, not complete official exam coverage.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:10
+    hostname: lx212.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

@@ -1,0 +1,44 @@
+schema_version: 1
+id: LX112
+title: Safe dual-stack NetworkManager practice
+goal: Configure persistent dual-stack addresses on a dummy interface without changing management.
+instructions: |
+  Work on node as student. Use sudo only for administration; level 0 tasks need no sudo.
+
+  ## Starting state
+
+  NetworkManager is running. There is no lx112-dummy profile or labdummy0 interface. The management NAT interface is already configured; leave it unchanged. All exercise addresses belong only to the harmless dummy interface, not to a second real network.
+
+  ## Required outcomes
+
+  1. Set the persistent and running hostname to `workshop.lab`.
+  2. Create exactly one persistent NetworkManager connection named `lx112-dummy`, type `dummy`, interface `labdummy0`, with autoconnect enabled.
+  3. Set its IPv4 method to manual and its only IPv4 address to `192.0.2.20/24`; set IPv4 never-default to yes and leave the gateway empty.
+  4. Set its IPv6 method to manual and its only configured IPv6 address to `2001:db8:112::20/64`; set IPv6 never-default to yes and leave the gateway empty.
+  5. Activate that profile on labdummy0; both required addresses must be present on that interface.
+  Do not modify management connections, DNS, default routes, firewall rules, or SSH. Configuration must be saved on disk for future boots; a reboot is not required. Automatic IPv6 link-local addresses are allowed.
+
+  ## Persistence and forbidden shortcuts
+
+  Keep all required files until grading. No reboot is required.
+  Forbidden shortcuts: do not alter source fixtures, grader assets, or management access.
+  Do not replace required regular files with symlinks or fabricate command output.
+  This is an outcome-based practice lab, not a root-tamper security boundary.
+
+  ## Grading
+
+  Run `labctl grade LX112` on the host, not in the VM. Each check reports PASS or FAIL.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 1
+    ram: 1GiB
+    disk: 12GiB
+    image: rocky:10
+    hostname: lx112.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

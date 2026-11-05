@@ -1,0 +1,66 @@
+schema_version: 1
+id: LX412
+title: Correlated application outage and memory retention
+goal: Recover a confined HTTP frontend and bounded backend while separating configuration, memory and SELinux causes.
+instructions: |
+  ## Incident and topology
+  A Rocky Linux 10 node runs Apache `httpd` on loopback port 8412, proxying
+  `/api/` to `lx412-worker` on loopback port 9412. `/release.txt` is a static
+  deployment artifact under `/srv/lx412/public`. A rollout introduced three
+  independent failures: proxy routing drift, excessive backend response-history
+  retention, and a persistent content-label error. A bounded startup workload
+  leaves memory evidence even when the frontend cannot reach the backend.
+  Management SSH is unchanged. Packages and SELinux tools are preinstalled.
+
+  ## Required outcomes
+  Repair `/etc/httpd/conf.d/lx412.conf` so the proxy reaches the actual backend;
+  preserve loopback-only listeners for the lab endpoints. Retain the supplied
+  `lx412_evidence` LogFormat and CustomLog: grading correlates a fresh request
+  token with Apache's actual filename and serving process, rejecting file aliases
+  to copied data. Preserve the worker's `X-Labctl-Probe` response header. Keep the original
+  release file and `/srv/lx412/records.csv` unchanged. `/release.txt` must serve
+  the original release file and `/api/total` must return the sum calculated
+  from the original numeric records with a trailing newline.
+  Diagnose `/etc/lx412-worker.json` and the worker's journal/cgroup usage.
+  Bound retained response history sustainably through configuration, without
+  changing the supplied worker code or disabling its request processing.
+  Grading sends 96 requests through Apache and requires every result correct,
+  the same worker PID throughout, and cgroup `memory.current` below 48 MiB
+  afterward. Keep `MemoryMax=96M` effective; do not remove the cap, use worker
+  restarts as garbage collection, or replace the worker with static content.
+  Repair the persistent SELinux mapping for `/srv/lx412/public` so both the
+  directory and release file have `httpd_sys_content_t` in policy and on disk.
+  Keep enforcing mode, no permissive httpd domain, and Apache actually confined
+  as `httpd_t`. Do not add broad allow rules or relabel the whole filesystem.
+  Keep `httpd` and `lx412-worker` active and enabled, and reboot after repairs.
+  Persistent journald evidence must include both units from the current boot;
+  no hand-written report or copied error strings can satisfy grading.
+  Do not alter protected baseline files, supplied program code or SSH policies.
+
+  ## EX342 alignment and evidence
+  Practices application configuration diagnosis, bounded memory-retention
+  debugging, SELinux labels and process domains, proxy traffic and centralized
+  journal correlation. Use `journalctl -b -u httpd -u lx412-worker`, `ss`,
+  `curl`, cgroup counters, `ps -eZ`, `matchpathcon`, and audit AVC diagnostics.
+  Persistent journald is already provisioned as an evidence baseline; a separate
+  remote log collector, RPM database damage, and genuine native-library memory
+  leaks are not simulated. The backend models configurable object retention.
+  Grading briefly creates and removes a random `labctl-probe-*` file in the
+  required document root to reject copied/static substitutes. Original data is
+  never rewritten; retain normal static-file serving for this probe.
+  Run `labctl grade LX412` on the host, not inside the VM. Grading performs a
+  small bounded workload, so it is not strictly read-only.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 14GiB
+    image: rocky:10
+    hostname: lx412.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

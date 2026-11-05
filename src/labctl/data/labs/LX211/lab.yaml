@@ -1,0 +1,44 @@
+schema_version: 1
+id: LX211
+title: SELinux and firewall service repair
+goal: Restore a custom Apache endpoint without weakening mandatory access control.
+instructions: |
+  ## Starting state
+  One Rocky 10 node has Apache installed but stopped and disabled. Its supplied
+  virtual host listens on TCP 8088 and serves `/srv/lx211/site`; `health` contains
+  `LX211 secured records`. Content is deliberately mislabeled. Firewalld is active
+  in the management interface's public zone, with cockpit exposed and 8088 closed.
+  ## Required outcomes
+  Enable and start Apache. Keep the supplied document root and response. Define
+  persistent `httpd_sys_content_t` file-context policy for the site and apply it;
+  8088/tcp must be an `http_port_t` port. Keep SELinux enforcing, including after
+  reboot, and leave `httpd_unified` off. Permit 8088/tcp in public runtime and
+  permanent policy, removing the cockpit service from both. Keep firewalld enabled
+  and active. Reboot; the host must reach `http://NODE_ADDRESS:8088/health`.
+  The grader creates and removes a uniquely named temporary file in the docroot to
+  verify the actual service reads that tree, and also probes from the host.
+  ## Forbidden shortcuts
+  Do not disable SELinux/firewalld, set permissive domains, add broad allow policy,
+  use httpd_unified, symlink/copy the site elsewhere, replace Apache with a mock,
+  open all ports or alter management addressing. Do not modify baseline records.
+
+  ## Grading
+  Run `labctl grade LX211` on the host, not inside the VM. Checks are educational
+  outcome checks, not tamper-proof against root. Baseline checks preserve safety;
+  learner-objective checks must fail on untouched setup. Reboot only this guest.
+  This standalone exercise practices selected administration/troubleshooting
+  skills, not complete official exam coverage.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:10
+    hostname: lx211.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

@@ -315,7 +315,7 @@ def test_application_discovers_bundled_lab_definitions(tmp_path: Path) -> None:
         "LX302",
         "LX401",
         "LX402",
-    }
+    } | {f"LX{level}1{index}" for level in range(5) for index in range(3)}
     assert all(row["state"] == "available" for row in result.data)
 
 

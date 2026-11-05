@@ -1,0 +1,63 @@
+schema_version: 1
+id: LX410
+title: Account admission and application access incident
+goal: Restore scoped PAM admission and least-privilege application access without weakening management authentication.
+instructions: |
+  ## Incident and topology
+  One Rocky Linux 10 node hosts the internal dispatch service `lx410-api` on
+  loopback port 8410. A policy rollout broke several independent layers. All
+  packages and diagnostic programs are installed; management SSH is healthy.
+  Diagnose the journal, account dates, the dedicated `/etc/pam.d/lx410` account
+  stack, `/etc/security/lx410-access.conf`, group memberships and file access.
+  `/usr/local/libexec/lx410-account USER` exercises PAM account admission (not
+  password authentication); its exit status is the decision.
+
+  ## Required outcomes
+  Permit `lx410-agent` through this stack using the `lx410-operators` group,
+  and deny both `lx410-outsider` and `lx410-expired`. The expired canary is
+  deliberately in that authorized group:
+  preserve its expired account and preserve all three accounts. Apply account
+  expiry checks AND group-scoped authorization, not an unconditional allow.
+  Retain the dedicated two-module account stack (`pam_unix.so` and
+  `pam_access.so` in either order, each required or requisite, with the supplied
+  accessfile). Both expiry and group authorization must succeed for admission; a
+  failure of either must deny access. No particular module order is graded.
+  The access file must allow only `(lx410-operators)` from ALL origins, then
+  deny ALL; comments and whitespace are allowed. Do not add user exceptions.
+  Restore the agent's usable account dates, without changing student or root.
+  Keep `/srv/lx410/dispatch.txt` bytes intact, root-owned and mode 0640 with
+  group `lx410-readers`. The service user `lx410-app` must read it while the
+  outsider cannot. Correct persistent group membership rather than granting
+  world access. Do not change the supplied application or PAM probe programs.
+  Enable `lx410-api` and `lx410-admission`; the admission unit must succeed
+  before the API starts. The API must run as `lx410-app` and return the actual
+  dispatch file at `http://127.0.0.1:8410/dispatch.txt`.
+  Reboot after repair. Grading requires a changed boot ID, active/enabled units,
+  live admission decisions, service identity and end-to-end file access.
+  Do not alter SSH, system-auth, password-auth, global PAM policies, SELinux
+  enforcement, the protected baseline, or grant broad file permissions.
+
+  ## EX342 alignment and evidence
+  Practices scoped PAM account policy, account expiration, discretionary access,
+  service dependencies and journal-led diagnosis. No password-authentication,
+  SELinux fault, or network-firewall objective is claimed. Use `journalctl -b
+  -u lx410-admission -u lx410-api`, account tools and the supplied PAM probe to
+  distinguish causes. Written reports are optional and are not graded.
+  Grading briefly creates and removes a random `labctl-probe-*` file in the
+  required document root to reject copied/static substitutes. Original data is
+  never rewritten; retain normal static-file serving for this probe.
+  Run `labctl grade LX410` on the host, not inside the VM.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 14GiB
+    image: rocky:10
+    hostname: lx410.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student

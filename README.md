@@ -1,6 +1,6 @@
 # labctl
 
-`labctl` 0.5.1 is a typed Python 3.12+ CLI for reproducible Linux learning labs
+`labctl` 0.6.0 is a typed Python 3.12+ CLI for reproducible Linux learning labs
 on local KVM/libvirt. It validates and snapshots definitions, maintains verified
 content-addressed images, creates isolated networks and QCOW2 overlays,
 provisions with cloud-init, pins SSH host keys, manages lifecycle and drift, and
@@ -76,6 +76,12 @@ Regenerate the script after upgrading labctl. It completes nested commands,
 `ls`/`list`, plural aliases, and options; live image/lab/VM IDs are not queried.
 
 ## Workflow
+
+The [Rocky Linux 10 curriculum](docs/rocky10-linux-curriculum.md) adds 15 independent
+English Linux labs with three exercises per difficulty level (0–4), based on
+selected EX200/EX342 objectives. The existing Rocky 9, Ansible and container
+tracks remain available. All 15 new labs passed guest acceptance; the curriculum
+document records the tested scope and artifact-equivalence limits.
 
 Diagnose the selected provider and inspect bundled definitions and images:
 

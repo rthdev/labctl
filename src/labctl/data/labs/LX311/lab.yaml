@@ -1,0 +1,55 @@
+schema_version: 1
+id: LX311
+title: Network-to-storage incident diagnosis
+goal: Repair an exporter whose listener, ingress policy and storage independently prevent remote writes.
+instructions: |
+  ## Starting state
+  One standalone Rocky 10 node runs lx311-export.service as the lx311 account.
+  The immutable Python exporter reads /etc/lx311-export.conf, listens on TCP 8311,
+  serves GET /health and accepts POST /probe bodies into /srv/lx311/last-probe.
+  It is bound to loopback; public-zone ingress is closed; its supplied 256 MiB
+  ext4 image /var/lib/labctl-media/lx311.img is mounted read-only. Management SSH
+  is healthy. tcpdump, iproute, curl and filesystem tools are available.
+
+  ## Required outcomes
+  Diagnose all three independent causes using listener, packet-path and mount
+  evidence rather than stopping after the first successful local GET. Change
+  BIND in /etc/lx311-export.conf to 0.0.0.0; keep PORT=8311. Preserve the original
+  application and unit privilege boundaries. Keep the service enabled and active
+  as lx311, with NoNewPrivileges enabled. Keep the management interface in public;
+  allow only the needed 8311/tcp port in runtime and permanent firewalld policy.
+  Keep existing management access and firewalld enabled and active.
+  Repair /etc/fstab so the original image mounts read-write as ext4 at /srv/lx311
+  on normal boot, using loop without noauto or nofail. Preserve ledger.txt with
+  exactly `LX311 retained ledger` and the original filesystem UUID. Reboot.
+  From the host, GET http://NODE_ADDRESS:8311/health must return the ledger, and
+  POST /probe must return and persist the exact submitted body as last-probe on
+  that same filesystem. The grader combines a host GET with a fresh local POST,
+  checks socket ownership and the original mounted medium, and removes its
+  last-probe artefact; stale successful requests cannot pass. Use bounded packet
+  captures for diagnosis; no particular diagnostic command sequence is graded.
+
+  ## Forbidden shortcuts
+  Do not replace the server with a mock, edit its Python program, delete the
+  required mount, move the data to the root filesystem, reformat the image,
+  use root as the service identity, disable SELinux/firewalld, open all ports,
+  or change management addressing or protected baseline records.
+
+  ## Grading
+  Run `labctl grade LX311` on the host after reboot. Safety baselines may pass
+  before repair; learner outcomes must be satisfied together. This educational
+  check is not a root anti-tamper boundary and does not cover the entire EX342.
+provider: kvm
+grader: grade.py
+vms:
+  - name: node
+    cpus: 2
+    ram: 2GiB
+    disk: 16GiB
+    image: rocky:10
+    hostname: lx311.lab
+    interfaces:
+      - type: isolated_nat
+    setup: setup.sh
+    depends_on: []
+    ssh_user: student
